@@ -8,6 +8,7 @@ that can be executed remotely and can be chained to pipelines of tools.
 """
 from tempfile import NamedTemporaryFile
 import subprocess
+import signal
 
 from mako.template import Template
 
@@ -62,6 +63,12 @@ class Tool(object):
     This adds a new on_start method, which will be called just before the tools
     call() method is executed.
 
+    By default, the tools class starts listening to SIGINT and SIGTERM singnals
+    and call the cleanup() and on_fail listeners. A signals of that sort is
+    treated as a execution failure. You can disable the signal handeling on
+    a class or instance level by setting the handle_signals class or instance
+    attribute to False.
+
     """
     version = None
     long_description = None
@@ -70,14 +77,28 @@ class Tool(object):
     on_finish = []
     on_success = []
     on_fail = []
+    handle_signals = True
 
-    def __init__(self):
+    def __init__(self, name=None):
         """Default Tool constructor that checks for the existence of
         all mandatory class variables.
+
+        The constructor allowes to specify an additional name attribute
+        which will be set as an instance variable. If the name
+        is not provided, the class name attribute will be used.
+
+        Paramter
+        --------
+
+        name -- optional name for this tool instance
+
         """
         # check that the name attribute is set
         try:
-            getattr(self.__class__, "name")
+            clname = getattr(self.__class__, "name")
+            self.name = clname
+            if name is None:
+                self.name = name
         except AttributeError:
             raise ToolException("No name specified. Ensure that "
                                 "your tool implementation provides "
@@ -101,11 +122,53 @@ class Tool(object):
         self.on_success = []
         self.on_success .extend(self.__class__.on_success)
 
+        # copy singlas attribute
+        self.handle_signals = self.__class__.handle_signals
+
     def run(self, *args, **kwargs):
         """Default run implementation that does fail checks
         and cleanup. Please do not override this method unless
         you know what you are doing. Implement the call() method
-        to implement you r functionality.
+        to implement your functionality.
+        """
+        # maintain a state array where we can put
+        # states to avoid conflicts between
+        # signal handler and normal listener calls
+        state = []
+        if self.handle_signals:
+            # add singnal handler
+            #
+            # to be able to pass the args and kwargs to
+            # the listeners that are called by the handler,
+            # we need them in an array
+            handler_data = [self, args, kwargs]
+
+            def handler(signum, frame):
+                # on signal, append true to the handler data
+                # to indicate that the handler managed
+                # the cleanup and lister calls
+                if "cleanup" not in state:
+                    state.append("cleanup")
+                    handler_data[0].cleanup(*(handler_data[1]),
+                                            failed=True, **(handler_data[2]))
+                if "on_fail" not in state:
+                    state.append("on_fail")
+                    handler_data[0]._on_fail(*(handler_data[1]),
+                                             **(handler_data[2]))
+                if "on_finish" not in state:
+                    state.append("on_finish")
+                    handler_data[0]._on_finish(*(handler_data[1]),
+                                               **(handler_data[2]))
+
+            signal.signal(signal.SIGHUP, handler)
+            signal.signal(signal.SIGTERM, handler)
+        return self.__execute(state, *args, **kwargs)
+
+    def __execute(self, state, *args, **kwargs):
+        """Internal method that does the actual execution of the
+        call method after singlan handler are set up.
+        This method is responsible for calling the listeners
+        and executing call. It returns the call return value.
         """
         # call the start up listeners
         self._on_start(*args, **kwargs)
@@ -114,15 +177,23 @@ class Tool(object):
             result = self.call(*args, **kwargs)
             self._on_success(*args, **kwargs)
             # successful call, do cleanup
-            self.cleanup(failed=False)
+            if "cleanup" not in state:
+                state.append("cleanup")
+                self.cleanup(*args, failed=False, **kwargs)
             return result
         except Exception, e:
-            self._on_fail(*args, **kwargs)
+            if "on_fail" not in state:
+                state.append("on_fail")
+                self._on_fail(*args, **kwargs)
             # do cleanup on failed call
-            self.cleanup(failed=True)
+            if "cleanup" not in state:
+                state.append("cleanup")
+                self.cleanup(*args, failed=True, **kwargs)
             raise e
         finally:
-            self._on_finish(*args, **kwargs)
+            if "on_finish" not in state:
+                state.append("on_finish")
+                self._on_finish(*args, **kwargs)
 
     def _on_start(self, *args, **kwargs):
         """Method called just before execution of the call method is executed.
@@ -171,7 +242,7 @@ class Tool(object):
                     # todo: add logging to report failing listener
                     pass
 
-    def cleanup(self, failed=False):
+    def cleanup(self, *args, **kwargs):
         """Cleanup method that is called after a run. The failed paramter
         indicates if the run failed or not.
         """
