@@ -13,5 +13,5 @@ class MyTool(Tool):
 
 def test_saving_simple_tool():
     t = MyTool()
-    f = ex.save(t)
+    f = ex.dump(t)
     assert f is not None

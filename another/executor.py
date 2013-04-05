@@ -51,9 +51,13 @@ python -c '
 import sys;
 import cPickle;
 source="".join([l for l in sys.stdin]).decode("base64");
-cPickle.loads(source).run();
+result = cPickle.loads(source).run();
+# pickel the result and print it to stdout
+result_string = cPickle.dumps(result).encode("base64");
+print "-------------------RESULT-------------------"
+print result_string
 '<< __EOF__
-%s___EOF___
+%s__EOF__
 
 """
     wrapper = ToolWrapper(tool, args, kwargs)

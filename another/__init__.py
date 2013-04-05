@@ -11,6 +11,7 @@ import subprocess
 import signal
 
 from mako.template import Template
+from another import executor as ex
 
 
 class ToolException(Exception):
@@ -100,9 +101,7 @@ class Tool(object):
             if name is None:
                 self.name = name
         except AttributeError:
-            raise ToolException("No name specified. Ensure that "
-                                "your tool implementation provides "
-                                "a name class variable")
+            self.name = self.__class__.__name__
         # check that the call method is implemented
         try:
             getattr(self, "call")
@@ -124,6 +123,53 @@ class Tool(object):
 
         # copy singlas attribute
         self.handle_signals = self.__class__.handle_signals
+
+    def dump(self, *args, **kwargs):
+        """Dump this tool with the given parameters
+        into a submittable script
+        """
+        return ex.dump(self, *args, **kwargs)
+
+    def submit(self, cluster, args=None, template=None, name=None, max_time=0,
+               max_mem=0, threads=1, queue=None, priority=None,
+               tasks=1, dependencies=None, working_dir=None, extra=None,
+               header=None):
+        """Submit the tool by wrapping it into the template
+        and sending it to the cluster. If the tool is a string, given args
+        are ignored and the script string is added as is into the template.
+        If the tool is an instance of Tool, the tools dump method is
+        used to create the executable script.
+
+        This method return the job id associated with the job by the
+        unterlying grid engine.
+
+        Parameter
+        ---------
+        tool -- string representation of a bash script that will run the
+                tool or a tool instance that is dumped to create the script
+        args -- tuple of *args and **kwargs that are passed to the tool dump
+                in case the tool has to be converted to a script
+        template -- the base template that is used to render the start script.
+                    If this is none, the DEFAULT_TEMPLATE is used.
+        name     -- name of the job
+        max_time -- the maximum wallclock time of the job in seconds
+        max_mem  -- the maximum memory that can be allocated by the job in MB
+        threads  -- the number of cpus slots per task that should be allocated
+        tasks    -- the number of tasks executed by the job
+        queue    -- the queue the ob should be submitted to
+        prority  -- the jobs priority
+        dependencies -- list of ids of jobs this job depends on
+        working_dir  -- the jobs working directory
+        extra    -- list of any extra parameters that should be considered
+        header   -- custom script header that will be rendered into the
+                    template
+        """
+        return cluster.submit(self, args=args, template=template, name=name,
+                              max_time=max_time, max_mem=max_mem,
+                              threads=threads, queue=queue, priority=priority,
+                              tasks=tasks, dependencies=dependencies,
+                              working_dir=working_dir, extra=extra,
+                              header=header)
 
     def run(self, *args, **kwargs):
         """Default run implementation that does fail checks

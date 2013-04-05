@@ -4,7 +4,7 @@ engine.
 """
 import subprocess
 from mako.template import Template
-
+from another import Tool
 
 DEFAULT_TEMPLATE = """#!/bin/bash
 #
@@ -12,6 +12,7 @@ DEFAULT_TEMPLATE = """#!/bin/bash
 # the tool using the another_tool
 # library
 #
+${header or ''}
 
 ${script}
 
@@ -34,6 +35,7 @@ class Cluster(object):
     The submission template must be further customizable by the user, where the
     following variables are allowed
 
+     * header -- custom header that will be rendered into the template
      * script -- the tool_script
 
     The template is rendered using the mako library. The simplest use case
@@ -44,19 +46,28 @@ class Cluster(object):
 
     """
 
-    def submit(self, tool_script, template=None, max_time=0,
+    def submit(self, tool, args=None, template=None, name=None, max_time=0,
                max_mem=0, threads=1, queue=None, priority=None,
-               tasks=1, dependencies=None):
-        """submit the tool_script by wrapping it into the template
-        and sending it to the cluster. This method return the job
-        id associated with the job by the unterlying grid engine.
+               tasks=1, dependencies=None, working_dir=None, extra=None,
+               header=None):
+        """Submit the tool by wrapping it into the template
+        and sending it to the cluster. If the tool is a string, given args
+        are ignored and the script string is added as is into the template.
+        If the tool is an instance of Tool, the tools dump method is
+        used to create the executable script.
+
+        This method return the job id associated with the job by the
+        unterlying grid engine.
 
         Parameter
         ---------
-        tool_script -- string representation of a bash script that will run the
-                       tool.
+        tool -- string representation of a bash script that will run the
+                tool or a tool instance that is dumped to create the script
+        args -- tuple of *args and **kwargs that are passed to the tool dump
+                in case the tool has to be converted to a script
         template -- the base template that is used to render the start script.
                     If this is none, the DEFAULT_TEMPLATE is used.
+        name     -- name of the job
         max_time -- the maximum wallclock time of the job in seconds
         max_mem  -- the maximum memory that can be allocated by the job in MB
         threads  -- the number of cpus slots per task that should be allocated
@@ -64,29 +75,51 @@ class Cluster(object):
         queue    -- the queue the ob should be submitted to
         prority  -- the jobs priority
         dependencies -- list of ids of jobs this job depends on
+        working_dir  -- the jobs working directory
+        extra    -- list of any extra parameters that should be considered
+        header   -- custom script header that will be rendered into the
+                    template
         """
         if template is None:
             template = DEFAULT_TEMPLATE
 
-        rendered_template = Template(template).render(script=tool_script,
+        if isinstance(tool, Tool):
+            #dump the tool with arguments
+            arguments = []
+            kwargs = {}
+            if args is not None:
+                if len(args) > 0:
+                    arguments = args[0]
+                if len(args) > 1:
+                    kwargs = args[1]
+                if len(args) > 2:
+                    raise ValueError("The arguments tuple can not contain more"
+                                     " than two elements!")
+            tool = tool.dump(*arguments, **kwargs)
+
+        rendered_template = Template(template).render(script=tool,
                                                       max_time=max_time,
                                                       max_mem=max_mem,
                                                       threads=threads,
                                                       tasks=tasks,
                                                       queue=queue,
+                                                      header=header,
                                                       priority=priority)
         return self._submit(rendered_template,
+                            name=name,
                             max_time=max_time,
                             max_mem=max_mem,
                             threads=threads,
                             tasks=tasks,
                             queue=queue,
                             priority=priority,
-                            dependencies=dependencies)
+                            dependencies=dependencies,
+                            working_dir=working_dir,
+                            extra=extra)
 
-    def _submit(self, script, max_time=0,
+    def _submit(self, script, max_time=0, name=None,
                 max_mem=0, threads=1, queue=None, priority=None, tasks=1,
-                dependencies=None):
+                dependencies=None, working_dir=None, extra=None):
         """This method must be implemented by the subclass and
         submit the given script to the cluster. Please note that
         the script is passed as a string. It depends on the implementation
@@ -97,12 +130,14 @@ class Cluster(object):
         ---------
         tool_script -- the fully rendered script string
         max_time -- the maximum wallclock time of the job in seconds
+        name     -- the name of the job
         max_mem  -- the maximum memory that can be allocated by the job
         threads  -- the number of cpus slots per task that should be allocated
         tasks    -- the number of tasks executed by the job
         queue    -- the queue the ob should be submitted to
         prority  -- the jobs priority
         dependencies -- list or string of job ids that this job depends on
+        extra    -- list of any extra parameters that should be considered
         """
         pass
 
@@ -119,9 +154,9 @@ class Slurm(Cluster):
         """
         self.sbatch = sbatch
 
-    def _submit(self, script, max_time=0,
+    def _submit(self, script, max_time=0, name=None,
                 max_mem=0, threads=1, queue=None, priority=None, tasks=1,
-                dependencies=None, working_dir=None):
+                dependencies=None, working_dir=None, extra=None):
         params = [self.sbatch]
         if max_time is not None and max_time > 0:
             params.extend(["-t", str(max_time)])
@@ -139,16 +174,24 @@ class Slurm(Cluster):
             if isinstance(dependencies, basestring):
                 dependencies = [dependencies]
             params.extend(['-d', 'afterok:' + ":".join(dependencies)])
+        if extra is not None:
+            if isinstance(extra, basestring):
+                extra = [extra]
+            params.extend(extra)
+        if name is not None:
+            params.extend(['-J', name])
 
-        process = subprocess.Popen(params, stdin=subprocess.PIPE,
+        process = subprocess.Popen(params,
+                                   stdin=subprocess.PIPE,
                                    stdout=subprocess.PIPE,
                                    stderr=subprocess.PIPE,
-                                   shell=True)
+                                   shell=False)
 
         process.stdin.write(script)
         process.stdin.close()
-        (out, err) = process.communicate()
+        out = "".join([l for l in process.stdout])
+        err = "".join([l for l in process.stderr])
         if process.wait() != 0:
-            raise ClusterException("Error while submitting job:\n%s" % (err)
+            raise ClusterException("Error while submitting job:\n%s" % (err))
         job_id = out.strip().split(" ")[3]
         return job_id

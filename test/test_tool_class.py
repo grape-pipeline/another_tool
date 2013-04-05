@@ -20,12 +20,9 @@ def test_tool_with_invalid_tool_name():
     class MyTool(Tool):
         def call(self):
             pass
-    try:
-        print "Running "
-        MyTool()
-        assert False
-    except ToolException, e:
-        assert str(e).startswith("No name specified.")
+    t = MyTool()
+    assert t is not None
+    assert t.name == "MyTool", t.name
 
 
 def test_tool_optional_variables():
