@@ -6,6 +6,7 @@ Another tool library
 The library consists of classes and methods to define computational tools
 that can be executed remotely and can be chained to pipelines of tools.
 """
+import logging
 from tempfile import NamedTemporaryFile
 import subprocess
 import signal
@@ -281,7 +282,7 @@ class Tool(object):
                     # todo: add logging to report failing listener
                     pass
 
-    def cleanup(self, *args, **kwargs):
+    def cleanup(self, *args, failed=False, **kwargs):
         """Cleanup method that is called after a run. The failed paramter
         indicates if the run failed or not.
         """
@@ -290,6 +291,11 @@ class Tool(object):
     def __call__(self, *args, **kwargs):
         """Delegate to teh call() implementation of the tool"""
         return self.run(*args, **kwargs)
+
+    def log(self):
+        """Get the tool logger"""
+        return logging.getLogger("%s.%s" % (self.__module__,
+                                            self.__class__.__name__))
 
 
 class InterpretedTool(Tool):
@@ -391,3 +397,26 @@ class InterpretedTool(Tool):
             # call function
             return r(self, *args, **kwargs)
         return r
+
+    def cleanup(self, *args, failed=False, **kwargs):
+        """The default cleanup method of an interpreted tool checks the tools
+        _returns() and removes any files it finds
+        """
+        if failed:
+            rets = self._returns(*args, **kwargs)
+            files = []
+            if isinstance(rets, basestring):
+                files.append(rets)
+            elif isinstance(rets, (list, tuple,)):
+                for r in rets:
+                    if isinstance(r, basestring):
+                        files.append(r)
+
+            for f in files:
+                if os.path.exists(f):
+                    os.remove(f)
+
+
+class BashTool(InterpretedTool):
+    """Interpreter tool that uses bash for execution"""
+    interpreter = "bash"

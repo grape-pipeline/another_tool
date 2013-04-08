@@ -3,7 +3,7 @@
 and its implementation
 """
 
-from another import Tool, InterpretedTool, ToolException
+from another import Tool, InterpretedTool, ToolException, BashTool
 
 
 def test_tool_with_valid_tool_name():
@@ -121,3 +121,21 @@ def test_on_start_listener_calls():
     t = MyTool()
     t()
     assert called[0] is True
+
+
+def test_paramter_defs_and_file_cleanup():
+    class FastQC(BashTool):
+        name = "fastqc"
+        command = """
+        fastqc ${" ".join(args)}
+        """
+
+        def _returns(self, *args, **kwargs):
+            import re
+            return ["%s_fastqc.zip" % (
+                re.sub('(\.fastq|\.bam|\.sam|\.txt)+(\.gz|\.bz2)*$', '', x))
+                for x in args]
+    t = FastQC()
+    print t.get_command("1.fastq", "2.fastq")
+    print t._returns("1.fastq", "2.fastq")
+
