@@ -11,7 +11,6 @@ import subprocess
 import signal
 
 from mako.template import Template
-from another import executor as ex
 
 
 class ToolException(Exception):
@@ -123,12 +122,6 @@ class Tool(object):
 
         # copy singlas attribute
         self.handle_signals = self.__class__.handle_signals
-
-    def dump(self, *args, **kwargs):
-        """Dump this tool with the given parameters
-        into a submittable script
-        """
-        return ex.dump(self, *args, **kwargs)
 
     def submit(self, cluster, args=None, template=None, name=None, max_time=0,
                max_mem=0, threads=1, queue=None, priority=None,
