@@ -204,6 +204,15 @@ class Tool(object):
             signal.signal(signal.SIGTERM, handler)
         return self.__execute(state, *args, **kwargs)
 
+    def validate(self, *args, **kwargs):
+        """Validate the input paramters and throw an Exception
+        in case of any errors. The exception message should
+        carry details about the configuration issues encounterd
+        Note that the default implementation always return True and
+        no validation happens.
+        """
+        return True
+
     def __execute(self, state, *args, **kwargs):
         """Internal method that does the actual execution of the
         call method after singlan handler are set up.
