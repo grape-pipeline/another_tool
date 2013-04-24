@@ -3,7 +3,7 @@
 and its implementation
 """
 
-from another import Tool, InterpretedTool, ToolException, BashTool
+from another.tools import Tool, InterpretedTool, ToolException, BashTool
 
 
 def test_tool_with_valid_tool_name():
@@ -55,71 +55,70 @@ def test_simple_python_tool_definition():
     class MyTool(Tool):
         name = "MyTool"
 
-        def call(self, a, b):
-            return a + b
+        def call(self, args):
+            return args["a"] + args["b"]
     i = MyTool()
-    assert i.call(1, 2) == 3
-    assert i(1, 2) == 3
+    assert i.call({"a":1, "b":2}) == 3
+    assert i({"a":1, "b":2}) == 3
 
 
 def test_command_rendering_with_args_and_kwargs():
     class MyTool(InterpretedTool):
         name = "Mytool"
         interpreter = "bash"
-        command = " ${args[0]} + ${args[1]} with addition=${addition}"
+        command = " ${a} + ${b} with addition=${addition}"
     t = MyTool()
     assert t.get_command(
-        1, 2, addition="yeah") == " 1 + 2 with addition=yeah"
+        {"a": 1, "b": 2, "addition":"yeah"}) == " 1 + 2 with addition=yeah"
 
 
 def test_interpreter_tool_returns_method_none():
     class MyTool(InterpretedTool):
         name = "Mytool"
         interpreter = "bash"
-        command = " ${args[0]} + ${args[1]} with addition=${addition}"
-        returns = None
+        command = " ${a} + ${b} with addition=${addition}"
 
     t = MyTool()
-    assert t._returns() is None
+    assert t._returns(None) is None
 
 
 def test_interpreter_tool_returns_method_string():
     class MyTool(InterpretedTool):
         name = "Mytool"
         interpreter = "bash"
-        command = " ${args[0]} + ${args[1]} with addition=${addition}"
-        returns = "testme"
+        command = " ${a} + ${b} with addition=${addition}"
+        outputs = {"output": "testme"}
 
     t = MyTool()
-    assert t._returns() == "testme"
+    assert t._returns(None) == ["testme"]
 
 
 def test_interpreter_tool_returns_method_function():
     class MyTool(InterpretedTool):
         name = "Mytool"
         interpreter = "bash"
-        command = " ${args[0]} + ${args[1]} with addition=${addition}"
-        returns = lambda t: "testme"
+        command = " ${a} + ${b} with addition=${addition}"
+        outputs = {"output": lambda t: "testme"}
 
     t = MyTool()
-    assert t._returns() == "testme"
+    assert t._returns(None) == ["testme"]
 
 
 def test_on_start_listener_calls():
     called = [False]
 
-    def my_start(tool):
+    def my_start(tool, args):
         called[0] = True
 
     class MyTool(Tool):
         name = "Mytool"
         on_start = [my_start]
 
-        def call(self):
+        def call(self, args):
             pass
 
     t = MyTool()
-    t()
+    t(None)
     assert called[0] is True
 
 
@@ -136,6 +135,4 @@ def test_paramter_defs_and_file_cleanup():
                 re.sub('(\.fastq|\.bam|\.sam|\.txt)+(\.gz|\.bz2)*$', '', x))
                 for x in args]
     t = FastQC()
-    print t.get_command("1.fastq", "2.fastq")
-    print t._returns("1.fastq", "2.fastq")
 

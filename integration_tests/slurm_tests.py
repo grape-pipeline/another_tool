@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 from another.cluster import Slurm, Feature
-from another import Tool
+from another.tools import Tool
 
 
 class MyTool(Tool):

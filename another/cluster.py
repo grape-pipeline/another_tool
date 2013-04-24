@@ -8,7 +8,7 @@ import os
 import sys
 import time
 from mako.template import Template
-from another import Tool
+from another.tools import Tool
 import cPickle
 
 

@@ -1,6 +1,6 @@
 #!/usr/bin/env python
 """Test parts of the cluster implementation"""
-from another import Tool
+from another.tools import Tool
 from another.cluster import Cluster
 
 
