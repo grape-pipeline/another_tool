@@ -10,6 +10,7 @@ import logging
 from tempfile import NamedTemporaryFile
 import subprocess
 import signal
+import textwrap
 import os
 
 from mako.template import Template
@@ -424,7 +425,8 @@ class InterpretedTool(Tool):
         """Returns the fully rendered command template. Call args and
         kwargs are given
         """
-        return Template(self.__class__.command).render(tool=self, **args)
+        rendered = Template(self.__class__.command).render(tool=self, **args)
+        return textwrap.dedent(rendered)
 
     def is_done(self, args):
         """Returns true if the tools has outputs defined and

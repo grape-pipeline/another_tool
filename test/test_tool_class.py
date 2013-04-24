@@ -69,7 +69,7 @@ def test_command_rendering_with_args_and_kwargs():
         command = " ${a} + ${b} with addition=${addition}"
     t = MyTool()
     assert t.get_command(
-        {"a": 1, "b": 2, "addition":"yeah"}) == " 1 + 2 with addition=yeah"
+        {"a": 1, "b": 2, "addition":"yeah"}) == "1 + 2 with addition=yeah"
 
 
 def test_interpreter_tool_returns_method_none():

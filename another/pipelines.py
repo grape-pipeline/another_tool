@@ -31,14 +31,14 @@ class Pipeline(object):
         self.tools[name] = wrapper
         return wrapper
 
-    def _get_configuration(self, tool):
+    def get_configuration(self, tool):
         """Resolve and return the configuration for the given tool"""
         if tool is None:
             raise ValueError("No tool specified")
         if not isinstance(tool, PipelineTool):
             tool = self.tools[tool]
 
-        return tool._get_configuration()
+        return tool.get_configuration()
 
     def get_sorted_tools(self):
         ret = []
@@ -83,7 +83,7 @@ class PipelineTool(object):
                 deps.add(v.pipeline_tool)
         return deps
 
-    def _get_configuration(self):
+    def get_configuration(self):
         """Return the fully resolved configuration for this tool"""
         config = dict(self._tool._get_default_configuration())
         config.update(dict({name: value.get()
@@ -91,9 +91,10 @@ class PipelineTool(object):
 
         # resolve
         config.update(self._tool._resolve(config))
+        config["job"] = self.job
         return config
 
-    def _get_raw_configuration(self):
+    def get_raw_configuration(self):
         """Return the fully resolved configuration for this tool"""
         config = dict(self._tool._get_default_configuration())
         for k, v in self._kwargs.items():
@@ -101,10 +102,13 @@ class PipelineTool(object):
                 config[k] = v.value
             else:
                 config[k] = v.get()
-
+        config["job"] = self.job
         # resolve
         #config.update(self._tool._resolve(config))
         return config
+
+    def _get_command(self):
+        return self._tool.get_command(self.get_configuration())
 
     def __getattr__(self, name):
         if name in self._kwargs:
@@ -118,7 +122,7 @@ class PipelineTool(object):
                              (type(self).__name__, name))
 
     def __setattr__(self, name, value):
-        if name not in ["_pipeline", "_tool", "_kwargs", "_name"]:
+        if name not in ["_pipeline", "_tool", "_kwargs", "_name", "job"]:
             if not isinstance(value, Parameter):
                 self._kwargs[name] = Parameter(self, name, value)
             else:
@@ -137,6 +141,6 @@ class Parameter(object):
         self.value = value
 
     def get(self):
-        raw = self.pipeline_tool._get_raw_configuration()
+        raw = self.pipeline_tool.get_raw_configuration()
         resolved = self.pipeline_tool._tool._resolve(raw)
         return resolved[self.attr]

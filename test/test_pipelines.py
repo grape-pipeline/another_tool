@@ -65,23 +65,25 @@ def test_pipeline_configure_tools():
     split.prefix = "split"
     split.count = 2
 
-    assert p._get_configuration(touch) == {"name": "myfile.txt", "file": "myfile.txt"}
-    assert p._get_configuration(split) == {"file": "myfile.txt",
+    assert p.get_configuration(touch) == {"name": "myfile.txt", "file": "myfile.txt", "job": touch.job}
+    assert p.get_configuration(split) == {"file": "myfile.txt",
                                     "prefix": "split",
                                     "count": 2,
-                                    "files": ["split-0", "split-1"]}
+                                          "files": ["split-0", "split-1"], "job": split.job}
 
 def test_pipeline_dependencies():
     p = Pipeline()
     touch = p.add(Touch())
     split = p.add(Split())
     touch_b = p.add(Touch(), "b")
-    touch.name= "myfile.txt"
+    touch_b.name = "myfile.txt"
+    touch.name= touch_b.name
     split.file = touch.file
     split.prefix = "split"
     split.count = 2
 
-    assert len(touch.get_dependencies()) == 0
+    assert len(touch_b.get_dependencies()) == 0
+    assert len(touch.get_dependencies()) == 1
     assert len(split.get_dependencies()) == 1
     assert list(split.get_dependencies()) == [touch]
     assert p.get_sorted_tools() == [touch_b, touch, split]
