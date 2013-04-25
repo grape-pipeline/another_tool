@@ -186,8 +186,7 @@ class Tool(object):
         if self.__class__.options is not None:
             self.options.update(self.__class__.options)
 
-        self.logger = logging.getLogger("%s.%s" % (self.__module__,
-                                                   self.__class__.__name__))
+        self.log = logging.getLogger(self.name)
 
     def __check_call_method(self):
         """Check the tool for an existing call method implementation"""
@@ -350,7 +349,7 @@ class Tool(object):
                 try:
                     listener(self, args)
                 except Exception, e:
-                    self.logger.warn("Listener call %s failed with"
+                    self.log.warn("Listener call %s failed with"
                                      " exception: %s", listener, e)
 
     def cleanup(self, args, failed=False):
