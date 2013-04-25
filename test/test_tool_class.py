@@ -59,7 +59,6 @@ def test_simple_python_tool_definition():
             return args["a"] + args["b"]
     i = MyTool()
     assert i.call({"a":1, "b":2}) == 3
-    assert i({"a":1, "b":2}) == 3
 
 
 def test_command_rendering_with_args_and_kwargs():
@@ -79,7 +78,7 @@ def test_interpreter_tool_returns_method_none():
         command = " ${a} + ${b} with addition=${addition}"
 
     t = MyTool()
-    assert t._returns(None) is None
+    assert t.returns(None) is None
 
 
 def test_interpreter_tool_returns_method_string():
@@ -90,7 +89,7 @@ def test_interpreter_tool_returns_method_string():
         outputs = {"output": "testme"}
 
     t = MyTool()
-    assert t._returns(None) == ["testme"]
+    assert t.returns(None) == ["testme"]
 
 
 def test_interpreter_tool_returns_method_function():
@@ -101,7 +100,7 @@ def test_interpreter_tool_returns_method_function():
         outputs = {"output": lambda t: "testme"}
 
     t = MyTool()
-    assert t._returns(None) == ["testme"]
+    assert t.returns(None) == ["testme"]
 
 
 def test_on_start_listener_calls():
@@ -118,7 +117,7 @@ def test_on_start_listener_calls():
             pass
 
     t = MyTool()
-    t(None)
+    t.run(None)
     assert called[0] is True
 
 
@@ -129,7 +128,7 @@ def test_paramter_defs_and_file_cleanup():
         fastqc ${" ".join(args)}
         """
 
-        def _returns(self, *args, **kwargs):
+        def returns(self, *args, **kwargs):
             import re
             return ["%s_fastqc.zip" % (
                 re.sub('(\.fastq|\.bam|\.sam|\.txt)+(\.gz|\.bz2)*$', '', x))

@@ -87,3 +87,21 @@ def test_pipeline_dependencies():
     assert len(split.get_dependencies()) == 1
     assert list(split.get_dependencies()) == [touch]
     assert p.get_sorted_tools() == [touch_b, touch, split]
+
+
+def test_simple_value_resolution():
+    p = Pipeline()
+    t = p.add(Touch())
+    t.name = "myname"
+    t.outfile = "${name}.txt"
+    assert t.outfile.get() == "myname.txt"
+
+
+def test_paramter_string_repr_value_resolution():
+    p = Pipeline()
+    t = p.add(Touch())
+    t.name = "myname"
+    t.outfile = "${name}.txt"
+    assert str(t.outfile) == "myname.txt"
+
+
