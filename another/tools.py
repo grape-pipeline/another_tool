@@ -254,7 +254,7 @@ class Tool(object):
             signal.signal(signal.SIGTERM, handler)
         return self.__execute(state, args)
 
-    def validate(self, args):
+    def validate(self, args, incoming=None):
         """Validate the input paramters and throw an ToolException
         in case of any errors.
         The exception message should carry details about the configuration
@@ -263,6 +263,15 @@ class Tool(object):
         Note that the default implementation always return True and
         no validation happens. Override this if you want to implement
         custom validation.
+
+        If the `incoming` paramter is set, it contains the configuraiton
+        dictionary that contains fields that are set by incoming
+        dependencies if this tool is part of a pipeline. The validation
+        implementation should check for this to, for example, not fail
+        if files do not exists that come from an incoming dependencies. In
+        these cases, the file should get created by the dependencies before
+        this tool is executed, but we can not validate that before the
+        actual execution.
 
         Paramter
         --------
@@ -350,7 +359,7 @@ class Tool(object):
                     listener(self, args)
                 except Exception, e:
                     self.log.warn("Listener call %s failed with"
-                                     " exception: %s", listener, e)
+                                  " exception: %s", listener, e)
 
     def cleanup(self, args, failed=False):
         """Cleanup method that is called after a run. The failed paramter
@@ -429,11 +438,11 @@ class InterpretedTool(Tool):
     interpreter = None
     command = None
 
-    def __init__(self):
+    def __init__(self, name=None):
         """Ensures that the interpreter is specified and throws
         a ToolException if not.
         """
-        Tool.__init__(self)
+        Tool.__init__(self, name=name)
         if self.__class__.interpreter is None:
             raise ToolException("No interpreter specified. Ensure that "
                                 "your tool implementation provides a "
@@ -489,7 +498,7 @@ class InterpretedTool(Tool):
                     return False
         return True
 
-    def validate(self, args):
+    def validate(self, args, incoming=None):
         """Validate the interpreted tool options based on the `inputs`.
         If `inputs` is not defined, this always returns True, otherwise
         False is returned if one if the kyes in `inputs` is not contained

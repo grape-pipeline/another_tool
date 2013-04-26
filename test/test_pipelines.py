@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-from another.pipelines import Pipeline, PipelineTool
+from another.pipelines import Pipeline, PipelineTool, CircularDependencyException
 from another.tools import BashTool
 import pytest
 
@@ -105,3 +105,34 @@ def test_paramter_string_repr_value_resolution():
     assert str(t.outfile) == "myname.txt"
 
 
+def test_pipeline_circular_dependencies_direct_loop():
+    p = Pipeline()
+    a = p.add(Touch("a"))
+    b = p.add(Touch("b"))
+    b.name = a.name
+
+    with pytest.raises(CircularDependencyException) as excinfo:
+        a.name = b.name
+    assert excinfo.value.circle == [a, a]
+
+
+def test_pipeline_circular_dependencies_complex_loop():
+    p = Pipeline()
+    a = p.add(Touch("a"))
+    b = p.add(Touch("b"))
+    c = p.add(Touch("c"))
+    d = p.add(Touch("d"))
+
+    a.name = "myfile.txt"
+    a.file = "outfile"
+    b.name = a.file
+    c.name = b.file
+    d.name = c.file
+
+    with pytest.raises(CircularDependencyException) as excinfo:
+        a.name = d.file
+    print excinfo.value.circle == [a, b, c, d]
+
+
+if __name__ == "__main__":
+    test_pipeline_circular_dependencies_complex_loop()
