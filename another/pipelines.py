@@ -87,7 +87,7 @@ class Pipeline(object):
             >>> try:
             >>>     pipeline.validate()
             >>> except PipelineException, e:
-            >>>     for step, errs in e.validation_errors.items()
+            >>>     for step, errs in e.validation_errors.items():
             >>>         for field, desc in errs.items():
             >>>             print "%s -> %s" % (field, desc)
 
@@ -95,7 +95,7 @@ class Pipeline(object):
         that failed validation
         """
         errs = {}
-        for step in self.tools():
+        for step in self.tools.values():
             try:
                 step.validate()
             except ToolException, e:
@@ -210,6 +210,9 @@ class Pipeline(object):
         if len(cycles) > 0:
             raise CircularDependencyException(cycles[0])
 
+    def __repr__(self):
+        return self.name
+
 
 class PipelineTool(object):
     """ A pipeline tool is a wrapper around a given tool instance
@@ -262,6 +265,10 @@ class PipelineTool(object):
         """Validate the tool using the current configuration"""
         self._tool.validate(self.get_configuration(),
                             self.get_incoming_configuration())
+
+    def cleanup(self, failed=False):
+        """Delegate to the tools cleanup method"""
+        self._tool.cleanup(self.get_configuration(), failed=failed)
 
     def get_incoming_configuration(self):
         """Creates the configuration dictionary and but excludes entries

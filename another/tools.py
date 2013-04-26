@@ -79,6 +79,7 @@ class Job(object):
         self.working_dir = working_dir
         self.extra = extra
         self.header = header
+        self.verbose = True
 
 
 class Tool(object):
@@ -443,6 +444,7 @@ class InterpretedTool(Tool):
         a ToolException if not.
         """
         Tool.__init__(self, name=name)
+        self.__process = None
         if self.__class__.interpreter is None:
             raise ToolException("No interpreter specified. Ensure that "
                                 "your tool implementation provides a "
@@ -462,14 +464,29 @@ class InterpretedTool(Tool):
 
         # try to run the script
         try:
-            process = subprocess.Popen([self.__class__.interpreter,
-                                        script_file.name], shell=False)
-            exit_value = process.wait()
+            stdout = None
+            stderr = None
+            if not self.job.verbose:
+                # pipe to /dev/null
+                stdout = open("/dev/null", "w")
+                stderr = open("/dev/null", "w")
+
+            self.__process = subprocess.Popen([self.__class__.interpreter,
+                                              script_file.name], shell=False,
+                                              stdout=stdout,
+                                              stderr=stderr)
+            exit_value = self.__process.wait()
             if exit_value != 0:
                 raise ToolException("Interpreter execution failed, process"
                                     " terminated with %d" % (exit_value))
             return self.returns(args)
         except Exception, e:
+            # kill the process
+            if self.__process is not None:
+                try:
+                    self.__process.kill()
+                except Exception, e:
+                    pass  # silent try to kill
             raise ToolException("Interpreter execution failed "
                                 "due to exception: %s" % (str(e)))
         finally:
