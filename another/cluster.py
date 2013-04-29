@@ -9,6 +9,7 @@ import sys
 import time
 from mako.template import Template
 from another.tools import Tool
+from another.pipelines import PipelineTool
 import cPickle
 
 
@@ -40,11 +41,10 @@ class ToolWrapper(object):
     to disk, and, when deserialized, execute the tool.
     """
 
-    def __init__(self, tool, args, kwargs):
+    def __init__(self, tool, args):
         """Initialize the wrapper with the tool and its arguments"""
         self.tool = tool
         self.args = args
-        self.kwargs = kwargs
 
     def run(self):
         """Run the tool and catch any exception raised by the tool
@@ -53,116 +53,11 @@ class ToolWrapper(object):
         up any exceptions raised in remote execution.
         """
         try:
-            result = self.tool.run(*(self.args), **(self.kwargs))
+            result = self.tool.run(self.args)
             return result
         except Exception, e:
             sys.stderr.write("Error while executing job: %s\n" % str(e))
             return e
-
-    def log(self):
-        """Get the tool logger"""
-        return logging.getLogger("%s.%s" % (self.__module__,
-                                            self.__class__.__name__))
-
-
-class JobTemplate(object):
-    """A JobTemplate defines how a tool is executed on a :class:Cluster
-    instance. The JobTemplate provides an easy way to create
-    a runtime cofiguration and sumbit a job to a cluster using that
-    configuration.
-
-    For example:
-
-    >>>tmpl = JobTemplate(threads=8, queue="highload")
-    >>>tmpl.submit(cluter, mytool, ...)
-
-    Creates a job template where each job submitted will be executed with
-    eight threads and passed to the 'highload' queue. All paramters are
-    passed to the cluster and you can achieve the same result by submitting
-    the job through the cluster directly, but the template might come
-    in handy if you have multiple jobs to submit or you have an environment
-    where you have just a few rather fixed templates.
-    """
-
-    def __init__(self, template=None, name=None, max_time=0,
-                 max_mem=0, threads=1, queue=None, priority=None,
-                 tasks=1, dependencies=None, working_dir=None, extra=None,
-                 header=None):
-        """Create a new JobTemplate
-
-        Paramter
-        --------
-        template -- the template that is used to render the job script
-        name -- the name of the job
-        max_time -- maximum time of the job
-        max_mem -- maximum memory of the job
-        threads -- number of threads for the job
-        queue -- the queue of the job
-        priority -- the priority of the job
-        tasks -- number of job tasks
-        dependencies -- ids of jobs this job depends on
-        working_dir -- the jobs worrking directory
-        extra -- addition paramters passed to the job
-        header -- additional string that is readnered as a haader into the
-                  default template
-        """
-        self.template = template
-        self.name = name
-        self.max_time = max_time
-        self.max_mem = max_mem
-        self.threads = threads
-        self.queue = queue
-        self.priority = priority
-        self.tasks = tasks
-        self.dependencies = dependencies
-        self.working_dir = working_dir
-        self.extra = extra
-        self.header = header
-
-    def submit(self, cluster, tool, args=None, template=None, name=None,
-               max_time=None, max_mem=None, threads=None, queue=None,
-               priority=None, tasks=None, dependencies=None, working_dir=None,
-               extra=None, header=None):
-        """Submit a given tool with its arguments to the specified cluster.
-        You can override all the paramters that are passed to the cluster
-        submit call.
-        """
-        if template is None:
-            template = self.template
-        if name is None:
-            name = self.name
-        if max_time is None:
-            max_time = self.max_time
-        if max_mem is None:
-            max_mem = self.max_mem
-        if threads is None:
-            threads = self.threads
-        if queue is None:
-            queue = self.queue
-        if priority is None:
-            priority = self.priority
-        if tasks is None:
-            tasks = self.tasks
-        if dependencies is None:
-            dependencies = self.dependencies
-        if working_dir is None:
-            working_dir = self.working_dir
-        if extra is None:
-            extra = self.extra
-        if header is None:
-            header = self.header
-
-        return cluster.submit(self, tool, args=args, template=template,
-                              name=name, max_time=max_time, max_mem=max_mem,
-                              threads=threads, queue=queue, priority=priority,
-                              tasks=tasks, dependencies=dependencies,
-                              working_dir=working_dir, extra=extra,
-                              header=header)
-
-    def log(self):
-        """Get the tool logger"""
-        return logging.getLogger("%s.%s" % (self.__module__,
-                                            self.__class__.__name__))
 
 
 class Feature(object):
@@ -174,13 +69,13 @@ class Feature(object):
     that contains the runtime information about the job.
     """
 
-    def __init__(self, jobid, stdout=None, stderr=None, job_template=None):
+    def __init__(self, jobid, tool=None, stdout=None, stderr=None):
         self.jobid = jobid
         self.stdout = stdout
         self.stderr = stderr
-        self.tool = None
-        self.args = None
-        self.job_template = job_template
+        self.tool = tool
+        self.log = logging.getLogger("%s.%s" % (self.__module__,
+                                                self.__class__.__name__))
 
     def get(self, cluster, check_interval=360):
         """Wait until the job is finished and returns the result of the job.
@@ -211,7 +106,7 @@ class Feature(object):
                         lines = []
                 return cPickle.loads("".join(lines).decode('base64'))
         except Exception, e:
-            self.log().error("Unable to load results from feature: %s", str(e))
+            self.log.error("Unable to load results from feature: %s", str(e))
             raise e
 
     def wait(self, cluster, check_interval=360):
@@ -243,11 +138,6 @@ class Feature(object):
         """Check the state of the job on the given remote cluster"""
         pass
 
-    def log(self):
-        """Get the logger"""
-        return logging.getLogger("%s.%s" % (self.__module__,
-                                            self.__class__.__name__))
-
 
 class Cluster(object):
     """The abstrat base class for cluster implementation consists of a single
@@ -271,10 +161,7 @@ class Cluster(object):
 
     """
 
-    def submit(self, tool, args=None, template=None, name=None, max_time=0,
-               max_mem=0, threads=1, queue=None, priority=None,
-               tasks=1, dependencies=None, working_dir=None, extra=None,
-               header=None):
+    def submit(self, tool, args=None):
         """Submit the tool by wrapping it into the template
         and sending it to the cluster. If the tool is a string, given args
         are ignored and the script string is added as is into the template.
@@ -290,53 +177,49 @@ class Cluster(object):
                 tool or a tool instance that is dumped to create the script
         args -- tuple of *args and **kwargs that are passed to the tool dump
                 in case the tool has to be converted to a script
-        template -- the base template that is used to render the start script.
-                    If this is none, the DEFAULT_TEMPLATE is used.
-        name     -- name of the job
-        max_time -- the maximum wallclock time of the job in seconds
-        max_mem  -- the maximum memory that can be allocated by the job in MB
-        threads  -- the number of cpus slots per task that should be allocated
-        tasks    -- the number of tasks executed by the job
-        queue    -- the queue the ob should be submitted to
-        prority  -- the jobs priority
-        dependencies -- list of ids of jobs this job depends on
-        working_dir  -- the jobs working directory
-        extra    -- list of any extra parameters that should be considered
-        header   -- custom script header that will be rendered into the
-                    template
         """
+        template = tool.job.template
         if template is None:
             template = DEFAULT_TEMPLATE
-
+        deps = None
         tool_script = tool
         if isinstance(tool, Tool):
             # if a tool list passed, make it
             # an executable script
             tool_script = self._dump_tool(tool, args)
+            deps = tool.job.dependencies
+        elif isinstance(tool, PipelineTool):
+            tool_script = self._dump_tool(tool._tool, args)
+            # update dependencies
+            deps = [str(d.job.jobid)
+                    for d in filter(lambda t: t.job.jobid is not None,
+                                    tool.get_dependencies())]
+        if len(deps) == 0:
+            deps = None
 
         rendered_template = Template(template).render(script=tool_script,
-                                                      max_time=max_time,
-                                                      max_mem=max_mem,
-                                                      threads=threads,
-                                                      tasks=tasks,
-                                                      queue=queue,
-                                                      header=header,
-                                                      priority=priority)
+                                                      max_time=tool.job.max_time,
+                                                      max_mem=tool.job.max_mem,
+                                                      threads=tool.job.threads,
+                                                      tasks=tool.job.tasks,
+                                                      queue=tool.job.queue,
+                                                      header=tool.job.header,
+                                                      priority=tool.job.priority)
+
         feature = self._submit(rendered_template,
-                               name=name,
-                               max_time=max_time,
-                               max_mem=max_mem,
-                               threads=threads,
-                               tasks=tasks,
-                               queue=queue,
-                               priority=priority,
-                               dependencies=dependencies,
-                               working_dir=working_dir,
-                               extra=extra)
-        feature.tool = tool
-        feature.args = args
-        feature.job_template.template = template
-        feature.job_template.header = header
+                               name=tool.job.name,
+                               max_time=tool.job.max_time,
+                               max_mem=tool.job.max_mem,
+                               threads=tool.job.threads,
+                               tasks=tool.job.tasks,
+                               queue=tool.job.queue,
+                               priority=tool.job.priority,
+                               dependencies=deps,
+                               working_dir=tool.job.working_dir,
+                               extra=tool.job.extra)
+        if isinstance(tool, (Tool, PipelineTool)):
+            tool.job.jobid = feature.jobid
+
         return feature
 
     def wait(self, jobid, check_interval=360):
@@ -353,7 +236,7 @@ class Cluster(object):
         """
         raise ClusterException("Wait is not implemented!")
 
-    def dump(self, tool, *args, **kwargs):
+    def dump(self, tool, args):
         """Save the given tool instance and the arguments and returns a string
         that is a valid bash script that will load and execute the tool.
 
@@ -386,7 +269,7 @@ print result_string
 %s__EOF__
 
 """
-        wrapper = ToolWrapper(tool, args, kwargs)
+        wrapper = ToolWrapper(tool, args)
         return template % (SEP_RESULT, cPickle.dumps(wrapper).encode("base64"))
 
     def _dump_tool(self, tool, args):
@@ -394,17 +277,7 @@ print result_string
         using the args and kwargs in the args paramters)
         """
         #dump the tool with arguments
-        arguments = []
-        kwargs = {}
-        if args is not None:
-            if len(args) > 0:
-                arguments = args[0]
-            if len(args) > 1:
-                kwargs = args[1]
-            if len(args) > 2:
-                raise ValueError("The arguments tuple can not contain more"
-                                 " than two elements!")
-        return self.dump(tool, *arguments, **kwargs)
+        return self.dump(tool, args)
 
     def _submit(self, script, max_time=0, name=None,
                 max_mem=0, threads=1, queue=None, priority=None, tasks=1,
@@ -510,17 +383,19 @@ class Slurm(Cluster):
         self.sbatch = sbatch
         self.squeue = squeue
 
-    def _submit(self, script, max_time=0, name=None,
-                max_mem=0, threads=1, queue=None, priority=None, tasks=1,
+    def _submit(self, script, max_time=None, name=None,
+                max_mem=None, threads=1, queue=None, priority=None, tasks=1,
                 dependencies=None, working_dir=None, extra=None):
         params = [self.sbatch]
 
-        self._add_parameter(params, "-t", max_time, lambda x: int(x) <= 0)
+        self._add_parameter(params, "-t", max_time,
+                            lambda x: x is None or int(x) <= 0)
         self._add_parameter(params, "-p", queue)
         self._add_parameter(params, "--qos", priority)
-        self._add_parameter(params, "-c", threads, lambda x: int(x) <= 0)
+        self._add_parameter(params, "-c", threads,
+                            lambda x: x is None or int(x) <= 0)
         self._add_parameter(params, "--mem-per-cpu", max_mem,
-                            lambda x: int(x) <= 0)
+                            lambda x: x is None or int(x) <= 0)
         self._add_parameter(params, "-D", working_dir)
         self._add_parameter(params, "-d", dependencies, prefix="afterok:",
                             to_list=":")
@@ -545,17 +420,11 @@ class Slurm(Cluster):
             raise ClusterException("Error while submitting job:\n%s" % (err))
         job_id = out.strip().split(" ")[3]
 
-        job_template = JobTemplate(self, name=name,
-                                   max_time=max_time, max_mem=max_mem,
-                                   threads=threads, queue=queue,
-                                   priority=priority, tasks=tasks,
-                                   dependencies=dependencies,
-                                   working_dir=working_dir, extra=extra)
         stdout_file = os.path.abspath("slurm-%s.out" % (job_id))
         stderr_file = os.path.abspath("slurm-%s.err" % (job_id))
+
         feature = Feature(jobid=job_id, stdout=stdout_file,
-                          stderr=stderr_file,
-                          job_template=job_template)
+                          stderr=stderr_file)
 
         return feature
 

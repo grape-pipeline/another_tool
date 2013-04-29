@@ -47,8 +47,8 @@ class Job(object):
     where you have just a few rather fixed templates.
     """
 
-    def __init__(self, template=None, name=None, max_time=0,
-                 max_mem=0, threads=1, queue=None,  priority=None,
+    def __init__(self, template=None, name=None, max_time=None,
+                 max_mem=None, threads=1, queue=None,  priority=None,
                  tasks=1, dependencies=None, working_dir=None, extra=None,
                  header=None):
         """Create a new JobTemplate
@@ -82,6 +82,7 @@ class Job(object):
         self.extra = extra
         self.header = header
         self.verbose = True
+        self.jobid = None
 
 
 class Tool(object):
@@ -192,7 +193,9 @@ class Tool(object):
         # save signals
         self._received_signal = None
 
-        self.log = logging.getLogger(self.name)
+    @property
+    def log(self):
+        return logging.getLogger(self.name)
 
     def __check_call_method(self):
         """Check the tool for an existing call method implementation"""
@@ -485,7 +488,6 @@ class InterpretedTool(Tool):
                                               stderr=stderr)
             exit_value = self.__process.wait()
         except Exception, e:
-            print ">>>>> TERMINATE DUE TO EXCEPTION"
             # kill the process
             if self.__process is not None:
                 try:
