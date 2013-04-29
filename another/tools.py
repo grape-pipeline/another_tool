@@ -24,6 +24,8 @@ class ToolException(Exception):
     def __init__(self, *args):
         Exception.__init__(self, *args)
         self.validation_errors = {}
+        self.termination_signal = None
+        self.exit_value = 0
 
 
 class Job(object):
@@ -187,6 +189,9 @@ class Tool(object):
         if self.__class__.options is not None:
             self.options.update(self.__class__.options)
 
+        # save signals
+        self._received_signal = None
+
         self.log = logging.getLogger(self.name)
 
     def __check_call_method(self):
@@ -238,6 +243,8 @@ class Tool(object):
             handler_data = [self, args]
 
             def handler(signum, frame):
+                #save signla
+                handler_data[0]._received_signal = signum
                 # on signal, append true to the handler data
                 # to indicate that the handler managed
                 # the cleanup and lister calls
@@ -253,6 +260,7 @@ class Tool(object):
 
             signal.signal(signal.SIGHUP, handler)
             signal.signal(signal.SIGTERM, handler)
+            signal.signal(signal.SIGINT, handler)
         return self.__execute(state, args)
 
     def validate(self, args, incoming=None):
@@ -476,19 +484,29 @@ class InterpretedTool(Tool):
                                               stdout=stdout,
                                               stderr=stderr)
             exit_value = self.__process.wait()
-            if exit_value != 0:
-                raise ToolException("Interpreter execution failed, process"
-                                    " terminated with %d" % (exit_value))
-            return self.returns(args)
         except Exception, e:
+            print ">>>>> TERMINATE DUE TO EXCEPTION"
             # kill the process
             if self.__process is not None:
                 try:
                     self.__process.kill()
-                except Exception, e:
+                except OSError:
                     pass  # silent try to kill
             raise ToolException("Interpreter execution failed "
                                 "due to exception: %s" % (str(e)))
+        else:
+            if exit_value != 0 or self._received_signal is not None:
+                if self._received_signal is not None:
+                    exp = ToolException("Interpreter execution failed, process"
+                                        " terminated with signal %d" %
+                                        (self._received_signal))
+                else:
+                    exp = ToolException("Interpreter execution failed, process"
+                                        " terminated with %d" % (exit_value))
+                exp.exit_value = exit_value
+                exp.termination_signal = self._received_signal
+                raise exp
+            return self.returns(args)
         finally:
             script_file.close()
 
