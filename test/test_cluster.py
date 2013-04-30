@@ -22,5 +22,5 @@ class MyTool(Tool):
 def test_saving_simple_tool():
     t = MyTool()
     ex = Cluster()
-    f = ex.dump(t)
+    f = ex.dump(t, {})
     assert f is not None

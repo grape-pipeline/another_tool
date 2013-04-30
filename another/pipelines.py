@@ -314,9 +314,6 @@ class PipelineTool(object):
             self._kwargs[name] = Parameter(self, name, raw)
             return self._kwargs[name]
 
-        raise AttributeError("%r object has no attribute %r" %
-                             (type(self).__name__, name))
-
     def __setattr__(self, name, value):
         if name not in ["_pipeline", "_tool", "_kwargs", "_name", "job",
                         "_in_edges", "_out_edges"]:

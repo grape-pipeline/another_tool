@@ -29,22 +29,10 @@ class ToolException(Exception):
 
 
 class Job(object):
-    """A Job defines how a tool is executed on a :class:Cluster
-    instance. The JobTemplate provides an easy way to create
-    a runtime cofiguration and sumbit a job to a cluster using that
-    configuration.
-
-    For example:
-
-    >>>tmpl = JobTemplate(threads=8, queue="highload")
-    >>>tmpl.submit(cluter, mytool, ...)
-
-    Creates a job template where each job submitted will be executed with
-    eight threads and passed to the 'highload' queue. All paramters are
-    passed to the cluster and you can achieve the same result by submitting
-    the job through the cluster directly, but the template might come
-    in handy if you have multiple jobs to submit or you have an environment
-    where you have just a few rather fixed templates.
+    """A Job defines how a tool is executed on a
+    :py:class:another.cluster.Cluster instance. The JobTemplate provides an
+    easy way to create a runtime cofiguration and sumbit a job to a cluster
+    using that configuration.
     """
 
     def __init__(self, template=None, name=None, max_time=None,
@@ -266,38 +254,6 @@ class Tool(object):
             signal.signal(signal.SIGINT, handler)
         return self.__execute(state, args)
 
-    def validate(self, args, incoming=None):
-        """Validate the input paramters and throw an ToolException
-        in case of any errors.
-        The exception message should carry details about the configuration
-        issues encounterd.
-
-        Note that the default implementation always return True and
-        no validation happens. Override this if you want to implement
-        custom validation.
-
-        If the `incoming` paramter is set, it contains the configuraiton
-        dictionary that contains fields that are set by incoming
-        dependencies if this tool is part of a pipeline. The validation
-        implementation should check for this to, for example, not fail
-        if files do not exists that come from an incoming dependencies. In
-        these cases, the file should get created by the dependencies before
-        this tool is executed, but we can not validate that before the
-        actual execution.
-
-        Paramter
-        --------
-        args - the tools configuration dictionary
-        """
-        return True
-
-    def is_done(self, args):
-        """Return True if no execution is needed for this tool.
-        The default implementations does not perform any checks and
-        always returnsm False
-        """
-        return False
-
     def __execute(self, state, args):
         """Internal method that does the actual execution of the
         call method after singlan handler are set up.
@@ -373,18 +329,109 @@ class Tool(object):
                     self.log.warn("Listener call %s failed with"
                                   " exception: %s", listener, e)
 
-    def cleanup(self, args, failed=False):
-        """Cleanup method that is called after a run. The failed paramter
-        indicates if the run failed or not. The default implemetation
-        does no cleanup operations. Override this method to implement
-        custom cleanup for a tool.
-
-        Paramter
-        --------
-        args   - the tools configuration dictionary
-        failed - True if the execution failed
+    def is_done(self, args):
+        """Returns true if the tools has outputs defined and
+        all outputs exist
         """
-        pass
+        outs = self.returns(args)
+        if outs is None:
+            return False
+        for output in outs:
+            if output is not None and len(output) > 0:
+                if not os.path.exists(output):
+                    return False
+        return True
+
+    def validate(self, args, incoming=None):
+        """Validate the interpreted tool options based on the `inputs`.
+        If `inputs` is not defined, this always returns True, otherwise
+        False is returned if one if the keys in `inputs` is not contained
+        in the kwargs"""
+        if self.__class__.inputs is None:
+            return True
+
+        for k, v in self.__class__.inputs.items():
+            if not k in args:
+                return False
+        return True
+
+    def returns(self, args):
+        """Default implementation of returns evaluates the returns class
+        variable value.
+
+        If the default output is None, the method immediately returneds.
+        Strings are evaluated as mako templates, putting the tool instance
+        and the tools configuration dictionary into the context.
+        Functions are called, passing the tool instance and the tool
+        configuraiton as arguments. If none of the above applies, the value
+        is returned as is.
+        """
+        rets = []
+        r = self.outputs
+        if r is None:
+            return None
+
+        if isinstance(r, dict):
+            # interprete it as a map and evaluate the values
+            for k, v in r.items():
+                ev = self.__evaluate_returns_value(v, args)
+                if ev is not None:
+                    if isinstance(ev, (list, tuple,)):
+                        rets.extend(ev)
+                    else:
+                        rets.append(ev)
+        else:
+            ev = self.__evaluate_returns_value(r, args)
+            if ev is not None:
+                if isinstance(ev, (list, tuple,)):
+                    rets.extend(ev)
+                else:
+                    rets.append(ev)
+        if len(rets) == 0:
+            return None
+        return rets
+
+    def _resolve(self, args):
+        rets = {}
+        for k, v in args.items():
+            ev = self.__evaluate_returns_value(v, args)
+            rets[k] = ev
+        return rets
+
+    def __evaluate_returns_value(self, r, args):
+        """Evaluate a single return value that is set in the `outputs`
+        class variable. Strings are treated as templates with access to the
+        current context, functions are executed with the current context
+        """
+        if r is None:
+            return None
+        if args is None:
+            args = {}
+        if isinstance(r, basestring):
+            # render template
+            return Template(r).render(tool=self, **args)
+        if callable(r):
+            # call function
+            return r(args)
+        return r
+
+    def cleanup(self, args, failed=False):
+        """The default cleanup method of an interpreted tool checks the tools
+        returns() and removes any files it finds
+        """
+        if failed:
+            rets = self.returns(args)
+            files = []
+            if isinstance(rets, basestring):
+                files.append(rets)
+            elif isinstance(rets, (list, tuple,)):
+                for r in rets:
+                    if isinstance(r, basestring):
+                        files.append(r)
+
+            for f in files:
+                if os.path.exists(f):
+                    os.remove(f)
 
     def _get_value(self, name):
         """Checks inputs, outputs, and options in that order for the
@@ -522,109 +569,6 @@ class InterpretedTool(Tool):
         rendered = Template(self.__class__.command).render(tool=self, **args)
         return textwrap.dedent(rendered)
 
-    def is_done(self, args):
-        """Returns true if the tools has outputs defined and
-        all outputs exist
-        """
-        outs = self.returns(args)
-        if outs is None:
-            return False
-        for output in outs:
-            if output is not None and len(output) > 0:
-                if not os.path.exists(output):
-                    return False
-        return True
-
-    def validate(self, args, incoming=None):
-        """Validate the interpreted tool options based on the `inputs`.
-        If `inputs` is not defined, this always returns True, otherwise
-        False is returned if one if the kyes in `inputs` is not contained
-        in the kwargs"""
-        if self.__class__.inputs is None:
-            return True
-
-        for k, v in self.__class__.inputs.items():
-            if not k in args:
-                return False
-        return True
-
-    def returns(self, args):
-        """Default implementation of returns evaluates the returns class
-        variable value.
-
-        If the default output is None, the method immediately returneds.
-        Strings are evaluated as mako templates, putting the tool instance
-        and the tools configuration dictionary into the context.
-        Functions are called, passing the tool instance and the tool
-        configuraiton as arguments. If none of the above applies, the value
-        is returned as is.
-        """
-        rets = []
-        r = self.outputs
-        if r is None:
-            return None
-
-        if isinstance(r, dict):
-            # interprete it as a map and evaluate the values
-            for k, v in r.items():
-                ev = self.__evaluate_returns_value(v, args)
-                if ev is not None:
-                    if isinstance(ev, (list, tuple,)):
-                        rets.extend(ev)
-                    else:
-                        rets.append(ev)
-        else:
-            ev = self.__evaluate_returns_value(r, args)
-            if ev is not None:
-                if isinstance(ev, (list, tuple,)):
-                    rets.extend(ev)
-                else:
-                    rets.append(ev)
-        if len(rets) == 0:
-            return None
-        return rets
-
-    def _resolve(self, args):
-        rets = {}
-        for k, v in args.items():
-            ev = self.__evaluate_returns_value(v, args)
-            rets[k] = ev
-        return rets
-
-    def __evaluate_returns_value(self, r, args):
-        """Evaluate a single return value that is set in the `outputs`
-        class variable. Strings are treated as templates with access to the
-        current context, functions are executed with the current context
-        """
-        if r is None:
-            return None
-        if args is None:
-            args = {}
-        if isinstance(r, basestring):
-            # render template
-            return Template(r).render(tool=self, **args)
-        if callable(r):
-            # call function
-            return r(args)
-        return r
-
-    def cleanup(self, args, failed=False):
-        """The default cleanup method of an interpreted tool checks the tools
-        returns() and removes any files it finds
-        """
-        if failed:
-            rets = self.returns(args)
-            files = []
-            if isinstance(rets, basestring):
-                files.append(rets)
-            elif isinstance(rets, (list, tuple,)):
-                for r in rets:
-                    if isinstance(r, basestring):
-                        files.append(r)
-
-            for f in files:
-                if os.path.exists(f):
-                    os.remove(f)
 
 
 class BashTool(InterpretedTool):
