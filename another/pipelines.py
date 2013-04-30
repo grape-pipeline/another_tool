@@ -238,6 +238,15 @@ class PipelineTool(object):
     raise a CircularDependencyException in case a loop is detected.
     """
     def __init__(self, pipeline, tool, name):
+        """Initialize a new PipelineTool
+
+        :param pipeline: the pipeline
+        :type pipeline: Pipeline
+        :param tool: the tool instance
+        :type tool: another.tools.Tool
+        :param name: the name
+        :type name: string
+        """
         self._pipeline = pipeline
         self._tool = tool
         self._kwargs = {}
