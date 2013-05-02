@@ -8,6 +8,10 @@ methods that can tell the pipeline if a given tool instance is ready
 to be executed and valid in terms of its configuration, or, if it
 the tool does not need to be executed as its computation is already done and
 the results are available.
+
+How a tool is executed locally or on a remote cluster can be further
+specified using the tools `job` attribute. An instance of
+:class:`another.tools.Job` is associated with each tool instance.
 """
 import logging
 from tempfile import NamedTemporaryFile
@@ -20,73 +24,164 @@ from mako.template import Template
 
 
 class ToolException(Exception):
-    """Exception thrown by Tool implementations"""
+    """This is the default exception raised by tool implementations.
+
+    In addition to the error message, the exception might carry additional
+    information. The following attributes might be set when the exception is
+    raised:
+
+    *termination_signal* -- Defaults to None and set to the signal number in
+    case the tool run was terminated by a signal
+
+    *exit_value* -- Defaults to 0 and is set to the exit value of the process
+    when the exception is raised during execution
+    """
     def __init__(self, *args):
         Exception.__init__(self, *args)
-        self.validation_errors = {}
         self.termination_signal = None
         self.exit_value = 0
 
 
+class ValidationException(Exception):
+    """The validation exception is raised by :func:`Tool.validate`
+    implementations in case a validation error occurred. The errors
+    dictionary contains the invalid field names as keys and a more explicit
+    error messages as value.
+    """
+    def __init__(self, errors):
+        """
+        Create a new instance of Validation exception
+
+        :param errors: the errors
+        :type errors: dict
+        """
+        Exception.__init__(self, "Validation Error")
+        self.errors = errors
+
 class Job(object):
-    """A Job defines how a tool is executed on a
-    :py:class:another.cluster.Cluster instance. The JobTemplate provides an
-    easy way to create a runtime cofiguration and sumbit a job to a cluster
-    using that configuration.
+    """An instance of Job defines how a :class:`Tool` is executed on a
+    :class:`another.cluster.Cluster` instance or locally. The Job provides an
+    easy way to create a runtime configuration that is then evaluated during
+    job submission or execution.
+
+    In addition to default parameters such as the number of threads or the
+    working directory, also general submission parameters can be set. This
+    covers the basic template that is used to run a job in the cluster,
+    and the *header* extension of the default template. For more details on
+    the template and the header extension, see :class:`another.cluster.Cluster`.
+
+    Properties:
+        template: string
+            The template that is used to render the job script
+        name: string
+            The name of the job
+        max_time: integer
+            The maximum wall clock time in minutes allowed for the job
+        max_mem: integer
+            The maximum memory in MB allowed for the job
+        threads: integer (default 1)
+            Number of threads/cpus assigned to the job
+        tasks: integer (default 1)
+            Number of tasks assigned to the job
+        queue: string
+            The queue that should be used to run the job
+        priority: string
+            The priority that should be used to run the job
+        dependencies: list of ids or list of tools
+            Either a list of id's of jobs this job depends on,
+            or a list of other tool instances this job depends on.
+        working_dir: string
+            The jobs working directory
+        extra: list of string
+            Extra attributes passed to the cluster submission
+        header: string
+            Additional string that is rendered as is into the jobs
+            templates before the job execution commands. This can be use,
+            for example, to set up the jobs environment at runtime
+        verbose: boolean (default True)
+            If set to False, all job output is hidden
+        logdir: string
+            The base directory where log files should be put
+        jobid: string
+            The job id. This is set after the job was submitted to a remote
+            cluster
     """
 
-    def __init__(self, template=None, name=None, max_time=None,
-                 max_mem=None, threads=1, queue=None,  priority=None,
-                 tasks=1, dependencies=None, working_dir=None, extra=None,
-                 header=None, logdir=None):
-        """Create a new Job
-
-        Paramter
-        --------
-        template -- the template that is used to render the job script
-        name -- the name of the job
-        max_time -- maximum time of the job
-        max_mem -- maximum memory of the job
-        threads -- number of threads for the job
-        queue -- the queue of the job
-        priority -- the priority of the job
-        tasks -- number of job tasks
-        dependencies -- ids of jobs this job depends on
-        working_dir -- the jobs worrking directory
-        extra -- addition paramters passed to the job
-        header -- additional string that is readnered as a haader into the
-                  default template
-        logdir -- base directory for log files
-        """
-        self.template = template
-        self.name = name
-        self.max_time = max_time
-        self.max_mem = max_mem
-        self.threads = threads
-        self.queue = queue
-        self.priority = priority
-        self.tasks = tasks
-        self.dependencies = dependencies
-        self.working_dir = working_dir
-        self.extra = extra
-        self.header = header
+    def __init__(self):
+        self.template = None
+        self.name = None
+        self.max_time = None
+        self.max_mem = None
+        self.threads = 1
+        self.queue = None
+        self.priority = None
+        self.tasks = 1
+        self.dependencies = []
+        self.working_dir = None
+        self.extra = []
+        self.header = None
         self.verbose = True
+        self.logdir = None
         self.jobid = None
-        self.logdir = logdir
 
 
 class Tool(object):
     """The main tool class that should be extended to implement
-    custom python based tools.
+    custom tools that execute logic. The tools logic must be implemented in
+    the :func:`call` method. The constructor checks for an implementation of
+    the :func:`call` method and a :class:`ToolException` is raised if no
+    implementation is found.
 
-    In order to create a valid tool, you have to override the `call()`
-    method. This will be checked at construction time. The call method
+    All tools are configured with a single dictionary,
+    the tool *configuration*. This configuration is made available to
+    all methods that execute or validate the tool or that are involved in the
+    tools execution flow.
+
+    The simplest way to create custom tool implementation that is based on
+    python code just implements the :func:`call` method. For example:
+
+        >>> from another.tools import Tool
+        >>> class MyTool(Tool):
+        ...     def call(self, args):
+        ...         print "MyTool is configured with", args
+        ...
+
+    The common execution flow of a tool consists of a validation step and an
+    execution step. This already works with the example above:
+
+        >>> tool = MyTool()
+        >>> cfg = {"a": 1, "b": 2}
+        >>> tool.validate(cfg)
+        True
+        >>> tool.run(cfg)
+        MyTool is configured with {'a': 1, 'b': 2}
+
+    Note that the default implementation of :func:`validate` always returns
+    True. Note also that we call the tools :func:`run` method to execute the
+    tool rather then the :func:`call` method that we just implemented. This
+    is due to the fact that the tool supports a listener chain where we can
+    add various methods that are executed while the tool goes through its
+    execution life cycle.
+
+    Tool validation
+    ---------------
+    A tool implementation can provide a custom validation function that can
+    check the tools configuration and raise a :class:`ToolException` in case
+    any errors are encountered. For example, we can ensure that our tool
+    configuration contains a "input_file" parameter and the file exists:
+
+
+
+
+
+
+    This will be checked at construction time. The call method
     takes a single dictionary as its first argument. This dictionary contains
     the tool configuration and is also used by other methods, i.e. for
     validation.
 
     Optionally, you can specify any of the following class variables
-    that are used to descripbe the tool:
+    that are used to describe the tool:
 
     name -- the name of your tool
     short_description -- a short description of the tool
@@ -105,8 +200,8 @@ class Tool(object):
         * on_fail
         * on_finish
 
-    The listeners are initializesd from the corresponding class variables, but
-    you can also add listern functions on the instance.
+    The listeners are initialised from the corresponding class variables, but
+    you can also add listener functions on the instance.
     A listener is a function implementation that takes the tool instance and
     the configuration as as arguments. The on_start and on_finish
     listeners are always called. on_success and on_fail are called if the tool
@@ -127,6 +222,13 @@ class Tool(object):
     a class or instance level by setting the handle_signals class or instance
     attribute to False.
 
+    .. method:: call(args)
+        Extensions of the tool class must provide a valid implementation of
+        this method. The methods implementation should execute the main tools
+        functionality and raise a :class:`ToolException` in case of an error.
+
+        :parameter args: the tools input configuration
+        :type args: dictionary
     """
     version = None
     long_description = None
@@ -142,13 +244,14 @@ class Tool(object):
 
     def __init__(self, name=None):
         """Default Tool constructor creates a new instance and optionally
-        assignes a name to the tool instance. If the name is not specified,
+        assigns a name to the tool instance. If the name is not specified,
         the class is checked for a `name` class variable. If that is not found,
         the class name is used.
 
-        Paramter
-        --------
-        name -- optional name for this tool instance
+        Parameter:
+            name: string (optional)
+                The name of the tool instance. Defaults to the tool name
+                class attribute
         """
         # check name and call method
         self.__check_name(name)
