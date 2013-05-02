@@ -38,8 +38,8 @@ class Job(object):
     def __init__(self, template=None, name=None, max_time=None,
                  max_mem=None, threads=1, queue=None,  priority=None,
                  tasks=1, dependencies=None, working_dir=None, extra=None,
-                 header=None):
-        """Create a new JobTemplate
+                 header=None, logdir=None):
+        """Create a new Job
 
         Paramter
         --------
@@ -56,6 +56,7 @@ class Job(object):
         extra -- addition paramters passed to the job
         header -- additional string that is readnered as a haader into the
                   default template
+        logdir -- base directory for log files
         """
         self.template = template
         self.name = name
@@ -71,6 +72,7 @@ class Job(object):
         self.header = header
         self.verbose = True
         self.jobid = None
+        self.logdir = logdir
 
 
 class Tool(object):

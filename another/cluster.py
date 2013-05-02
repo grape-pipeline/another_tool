@@ -178,6 +178,16 @@ class Cluster(object):
 
     In case the submission failed, a ClusterException is raised.
     """
+    STATE_QUEUED = "Queued"
+    STATE_RUNNING = "Running"
+    STATE_DONE = "Done"
+    STATE_FAILED = "Failed"
+
+
+    def list(self):
+        """A map of all active jobs on the cluster from the job id to the state
+        """
+        pass
 
     def submit(self, tool, args=None):
         """Submit the tool by wrapping it into the template
@@ -219,6 +229,10 @@ class Cluster(object):
         if len(deps) == 0:
             deps = None
 
+        # check and create log directory
+        if tool.job.logdir is not None and not os.path.exists(tool.job.logdir):
+            os.makedirs(tool.job.logdir)
+
         # render the job script
         rendered_template = Template(template).render(script=tool_script,
                                                       max_time=tool.job.max_time,
@@ -240,7 +254,8 @@ class Cluster(object):
                                priority=tool.job.priority,
                                dependencies=deps,
                                working_dir=tool.job.working_dir,
-                               extra=tool.job.extra)
+                               extra=tool.job.extra,
+                               logdir=tool.job.logdir)
 
         # set the tools jobid
         tool.job.jobid = feature.jobid
@@ -309,7 +324,7 @@ if isinstance(result, Exception):
 
     def _submit(self, script, max_time=0, name=None,
                 max_mem=0, threads=1, queue=None, priority=None, tasks=1,
-                dependencies=None, working_dir=None, extra=None):
+                dependencies=None, working_dir=None, extra=None, logdir=None):
         """This method must be implemented by the subclass and
         submit the given script to the cluster. Please note that
         the script is passed as a string. It depends on the implementation
@@ -328,6 +343,7 @@ if isinstance(result, Exception):
         prority  -- the jobs priority
         dependencies -- list or string of job ids that this job depends on
         extra    -- list of any extra parameters that should be considered
+        logdir   -- base log directory
         """
         pass
 
@@ -400,7 +416,7 @@ class Slurm(Cluster):
 
     """
 
-    def __init__(self, sbatch="sbatch", squeue="squeue"):
+    def __init__(self, sbatch="sbatch", squeue="squeue", list_args=None):
         """Initialize the slurm cluster.
 
         Paramter
@@ -410,11 +426,42 @@ class Slurm(Cluster):
         """
         self.sbatch = sbatch
         self.squeue = squeue
+        self.list_args = list_args
+
+    def list(self):
+        jobs = {}
+        params = [self.squeue, "-h", "-o", "%i,%t"]
+        if self.list_args is not None:
+            params.extend(self.list_args)
+
+        process = subprocess.Popen(params,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE,
+                                   shell=False)
+        for l in process.stdout:
+            jid, state = l.strip().split(",")
+            js = Cluster.STATE_QUEUED
+            if state == "R":
+                js = Cluster.STATE_RUNNING
+            jobs[jid] = js
+        err = "".join([l for l in process.stderr])
+        if process.wait() != 0:
+            raise ClusterException("Error while submitting job:\n%s" % (err))
+        return jobs
 
     def _submit(self, script, max_time=None, name=None,
                 max_mem=None, threads=1, queue=None, priority=None, tasks=1,
-                dependencies=None, working_dir=None, extra=None):
+                dependencies=None, working_dir=None, extra=None, logdir=None):
         params = [self.sbatch]
+
+        if logdir is None:
+            logdir = os.getcwd()
+        logdir = os.path.abspath(logdir)
+
+        stdout_file = os.path.join(logdir, "slurm-%j.out")
+        stderr_file = os.path.join(logdir, "slurm-%j.err")
+
+
 
         self._add_parameter(params, "-t", max_time,
                             lambda x: x is None or int(x) <= 0)
@@ -430,8 +477,8 @@ class Slurm(Cluster):
         self._add_parameter(params, "-d", dependencies, prefix="afterok:",
                             to_list=":")
         self._add_parameter(params, "-J", name)
-        self._add_parameter(params, "-e", "slurm-%j.err")
-        self._add_parameter(params, "-o", "slurm-%j.out")
+        self._add_parameter(params, "-e", stderr_file)
+        self._add_parameter(params, "-o", stdout_file)
         self._add_parameter(params, value=extra)
 
         process = subprocess.Popen(params,
@@ -448,12 +495,11 @@ class Slurm(Cluster):
             raise ClusterException("Error while submitting job:\n%s" % (err))
         job_id = out.strip().split(" ")[3]
 
-        stdout_file = os.path.abspath("slurm-%s.out" % (job_id))
-        stderr_file = os.path.abspath("slurm-%s.err" % (job_id))
+        # calculate the full name to the log files
+        stdout_file = os.path.join(logdir, "slurm-%s.out" % job_id)
+        stderr_file = os.path.join(logdir, "slurm-%s.err" % job_id)
 
-        feature = Feature(jobid=job_id, stdout=stdout_file,
-                          stderr=stderr_file)
-
+        feature = Feature(jobid=job_id, stdout=stdout_file, stderr=stderr_file)
         return feature
 
     def wait(self, jobid, check_interval=360):
