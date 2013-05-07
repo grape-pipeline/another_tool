@@ -242,7 +242,6 @@ class Cluster(object):
                                                       queue=tool.job.queue,
                                                       header=tool.job.header,
                                                       priority=tool.job.priority)
-
         # submit
         feature = self._submit(rendered_template,
                                name=tool.job.name,
@@ -516,3 +515,124 @@ class Slurm(Cluster):
                 return
             else:
                 time.sleep(check_interval)
+
+class SunGrid(Cluster):
+    """SGE extension of the Cluster implementation
+
+    The SGE implementation sends jobs to the cluster using
+    the `qsub` command line tool. The job parameter are paseed
+    to `qsub` as they are. Note that:
+    """
+
+    def __init__(self, qsub="qsub", qstat="qstat", list_args=None):
+        """Initialize the SGE cluster.
+
+        Paramter
+        --------
+        qsub -- path to the qsub command. Defaults to 'qsub'
+        qstat -- path to the qstat command. Defaults to 'qstat'
+        """
+        self.qsub = qsub
+        self.qstat = qstat
+        self.list_args = list_args
+
+    def list(self):
+        jobs = {}
+        params = [self.qstat, "-u", os.getenv('USER')]
+        if self.list_args is not None:
+            params.extend(self.list_args)
+
+        process = subprocess.Popen(params,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE,
+                                   shell=False)
+        for l in process.stdout:
+            fields = l.strip().split("\t")
+            js = Cluster.STATE_QUEUED
+            if fields[4] == "r":
+                js = Cluster.STATE_RUNNING
+            jobs[jid] = js
+        err = "".join([l for l in process.stderr])
+        if process.wait() != 0:
+            raise ClusterException("Error while submitting job:\n%s" % (err))
+        return jobs
+
+    def _submit(self, script, max_time=None, name=None,
+                max_mem=None, threads=1, queue=None, priority=None, tasks=1,
+                dependencies=None, working_dir=None, extra=None, logdir=None):
+        params = [self.qsub]
+
+        if logdir is None:
+            logdir = os.getcwd()
+        logdir = os.path.abspath(logdir)
+
+        stdout_file = os.path.join(logdir, "sge-$JOB_NAME.out")
+        stderr_file = os.path.join(logdir, "sge-$JOB_NAME.err")
+
+
+        list = ["h_rt=%s" % max_time, "virtual_free=%s" % max_mem]
+        self._add_parameter(params, "-q", queue)
+        self._add_parameter(params, None, ['-pe', 'smp', str(threads)],
+                            lambda x: x[2] == None or int(x[2] <= 0))
+        self._add_parameter(params, "-N", name)
+        self._add_parameter(params, "-now", "n")
+        self._add_parameter(params, '-l',['h_rt', str(self._parse_time(max_time))],
+                lambda x: x[1] == 'None' or int(x[1]) <= 0, to_list="=")
+        self._add_parameter(params, '-l', ['virtual_free', str(max_mem)],
+                lambda x: x[1] == 'None' or int(x[1]) <= 0, to_list="=")
+        self._add_parameter(params, "-wd", working_dir,
+                            lambda x: x is None or int(x) <= 0)
+        #self._add_parameter(params, "-d", dependencies, prefix="afterok:",
+        #                    to_list=":")
+        #self._add_parameter(params, "-d", dependencies, prefix="afterok:",
+        #                    to_list=":")
+        self._add_parameter(params, "-e", stderr_file)
+        self._add_parameter(params, "-o", stdout_file)
+        self._add_parameter(params, value=extra)
+
+        process = subprocess.Popen(params,
+                                   stdin=subprocess.PIPE,
+                                   stdout=subprocess.PIPE,
+                                   stderr=subprocess.PIPE,
+                                   shell=False)
+
+        process.stdin.write(script)
+        process.stdin.close()
+        out = "".join([l for l in process.stdout])
+        err = "".join([l for l in process.stderr])
+        if process.wait() != 0:
+            raise ClusterException("Error while submitting job:\n%s" % (err))
+        job_id = out.strip().split(" ")[3]
+
+        # calculate the full name to the log files
+        stdout_file = os.path.join(logdir, "sge-%s.out" % job_id)
+        stderr_file = os.path.join(logdir, "sge-%s.err" % job_id)
+
+        feature = Feature(jobid=job_id, stdout=stdout_file, stderr=stderr_file)
+        return feature
+
+    def wait(self, jobid, check_interval=360):
+        if jobid is None:
+            raise ClusterException("No job id specified! Unable to check"
+                                   "  job state!")
+
+        while True:
+            process = subprocess.Popen([self.qstat, '-j', str(jobid)],
+                                       stderr=subprocess.PIPE,
+                                       stdout=subprocess.PIPE)
+            (out, err) = process.communicate()
+            if process.wait() != 0 or len(out.strip()) == 0:
+                return
+            else:
+                time.sleep(check_interval)
+
+    def _parse_time(self, time):
+        if time is None:
+            return time
+        t = map(lambda x: x or '0', time.split(':'))
+        if len(t) is 1:
+            return time
+        if len(t) is not 3:
+            raise ValueError('SunGrid: Invalid time string format')
+        return int(t[0])*3600 + int(t[1])*60 + int(t[2])
+
