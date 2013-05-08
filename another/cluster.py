@@ -568,16 +568,15 @@ class SunGrid(Cluster):
         if working_dir is None:
             working_dir = os.path.abspath(os.getcwd())
 
-        list = ["h_rt=%s" % max_time, "virtual_free=%s" % max_mem]
         self._add_parameter(params, "-q", queue)
         self._add_parameter(params, None, ['-pe', 'smp', str(threads)],
                             lambda x: x[2] == None or int(x[2] <= 0))
         self._add_parameter(params, "-N", name)
-        self._add_parameter(params, "-now", "n")
         self._add_parameter(params, '-l',['h_rt', str(self._parse_time(max_time))],
                 lambda x: x[1] == 'None' or int(x[1]) <= 0, to_list="=")
         self._add_parameter(params, '-l', ['virtual_free', str(max_mem)],
                 lambda x: x[1] == 'None' or int(x[1]) <= 0, to_list="=")
+        self._add_parameter(params,value="-V")
         self._add_parameter(params, "-wd", working_dir,
                             lambda x: not os.path.exists(str(x)))
         self._add_parameter(params, "-hold_jid", dependencies,
