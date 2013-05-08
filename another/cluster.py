@@ -232,7 +232,6 @@ class Cluster(object):
         # check and create log directory
         if tool.job.logdir is not None and not os.path.exists(tool.job.logdir):
             os.makedirs(tool.job.logdir)
-
         # render the job script
         rendered_template = Template(template).render(script=tool_script,
                                                       max_time=tool.job.max_time,
@@ -527,7 +526,7 @@ class SunGrid(Cluster):
     def __init__(self, qsub="qsub", qstat="qstat", list_args=None):
         """Initialize the SGE cluster.
 
-        Paramter
+        Parameter
         --------
         qsub -- path to the qsub command. Defaults to 'qsub'
         qstat -- path to the qstat command. Defaults to 'qstat'
@@ -549,9 +548,9 @@ class SunGrid(Cluster):
         for l in process.stdout:
             fields = l.strip().split("\t")
             js = Cluster.STATE_QUEUED
-            if fields[4] == "r":
+            if len(fields) > 4 and fields[4] == "r":
                 js = Cluster.STATE_RUNNING
-            jobs[jid] = js
+            jobs[fields[0]] = js
         err = "".join([l for l in process.stderr])
         if process.wait() != 0:
             raise ClusterException("Error while submitting job:\n%s" % (err))
@@ -566,9 +565,8 @@ class SunGrid(Cluster):
             logdir = os.getcwd()
         logdir = os.path.abspath(logdir)
 
-        stdout_file = os.path.join(logdir, "sge-$JOB_NAME.out")
-        stderr_file = os.path.join(logdir, "sge-$JOB_NAME.err")
-
+        if working_dir is None:
+            working_dir = os.path.abspath(os.getcwd())
 
         list = ["h_rt=%s" % max_time, "virtual_free=%s" % max_mem]
         self._add_parameter(params, "-q", queue)
@@ -581,13 +579,11 @@ class SunGrid(Cluster):
         self._add_parameter(params, '-l', ['virtual_free', str(max_mem)],
                 lambda x: x[1] == 'None' or int(x[1]) <= 0, to_list="=")
         self._add_parameter(params, "-wd", working_dir,
-                            lambda x: x is None or int(x) <= 0)
-        #self._add_parameter(params, "-d", dependencies, prefix="afterok:",
-        #                    to_list=":")
-        #self._add_parameter(params, "-d", dependencies, prefix="afterok:",
-        #                    to_list=":")
-        self._add_parameter(params, "-e", stderr_file)
-        self._add_parameter(params, "-o", stdout_file)
+                            lambda x: not os.path.exists(str(x)))
+        self._add_parameter(params, "-hold_jid", dependencies,
+                            to_list=",")
+        self._add_parameter(params, "-e", logdir)
+        self._add_parameter(params, "-o", logdir)
         self._add_parameter(params, value=extra)
 
         process = subprocess.Popen(params,
@@ -602,11 +598,14 @@ class SunGrid(Cluster):
         err = "".join([l for l in process.stderr])
         if process.wait() != 0:
             raise ClusterException("Error while submitting job:\n%s" % (err))
-        job_id = out.strip().split(" ")[3]
+        import re
+        expr = 'Your job (?P<job_id>.+) .+ has been submitted'
+        match = re.search(expr, out)
+        job_id = match.group('job_id')
 
         # calculate the full name to the log files
-        stdout_file = os.path.join(logdir, "sge-%s.out" % job_id)
-        stderr_file = os.path.join(logdir, "sge-%s.err" % job_id)
+        stdout_file = os.path.join(logdir, "%s.o%s" % (name, job_id))
+        stderr_file = os.path.join(logdir, "%s.e%s" % (name, job_id))
 
         feature = Feature(jobid=job_id, stdout=stdout_file, stderr=stderr_file)
         return feature
