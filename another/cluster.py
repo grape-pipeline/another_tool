@@ -546,7 +546,7 @@ class SunGrid(Cluster):
                                    stderr=subprocess.PIPE,
                                    shell=False)
         for l in process.stdout:
-            fields = l.strip().split("\t")
+            fields = l.strip().split(" ")
             js = Cluster.STATE_QUEUED
             if len(fields) > 4 and fields[4] == "r":
                 js = Cluster.STATE_RUNNING
