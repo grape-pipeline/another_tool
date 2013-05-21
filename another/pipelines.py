@@ -2,7 +2,7 @@
 """Another tool pipeline impplementation to create pipelines of tools.
 """
 from functools import reduce
-from another.tools import ToolException
+from another.tools import ValidationException
 
 
 class PipelineException(Exception):
@@ -98,8 +98,8 @@ class Pipeline(object):
         for step in self.tools.values():
             try:
                 step.validate()
-            except ToolException, e:
-                errs[step._name] = dict(e.validation_errors)
+            except ValidationException, e:
+                errs[step._name] = dict(e.errors)
         if len(errs) > 0:
             e = PipelineException("Pipeline validation failed!")
             e.validation_errors = errs
