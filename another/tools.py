@@ -47,6 +47,11 @@ class ValidationException(Exception):
     implementations in case a validation error occurred. The errors
     dictionary contains the invalid field names as keys and a more explicit
     error messages as value.
+
+    Properties:
+        errors: dictionary
+            The error dict where keys are the invalid field names and values
+            are the error messages
     """
     def __init__(self, errors):
         """
@@ -57,6 +62,7 @@ class ValidationException(Exception):
         """
         Exception.__init__(self, "Validation Error")
         self.errors = errors
+
 
 class Job(object):
     """An instance of Job defines how a :class:`Tool` is executed on a
@@ -126,110 +132,6 @@ class Job(object):
 
 
 class Tool(object):
-    """The main tool class that should be extended to implement
-    custom tools that execute logic. The tools logic must be implemented in
-    the :func:`call` method. The constructor checks for an implementation of
-    the :func:`call` method and a :class:`ToolException` is raised if no
-    implementation is found.
-
-    All tools are configured with a single dictionary,
-    the tool *configuration*. This configuration is made available to
-    all methods that execute or validate the tool or that are involved in the
-    tools execution flow.
-
-    The simplest way to create custom tool implementation that is based on
-    python code just implements the :func:`call` method. For example:
-
-        >>> from another.tools import Tool
-        >>> class MyTool(Tool):
-        ...     def call(self, args):
-        ...         print "MyTool is configured with", args
-        ...
-
-    The common execution flow of a tool consists of a validation step and an
-    execution step. This already works with the example above:
-
-        >>> tool = MyTool()
-        >>> cfg = {"a": 1, "b": 2}
-        >>> tool.validate(cfg)
-        True
-        >>> tool.run(cfg)
-        MyTool is configured with {'a': 1, 'b': 2}
-
-    Note that the default implementation of :func:`validate` always returns
-    True. Note also that we call the tools :func:`run` method to execute the
-    tool rather then the :func:`call` method that we just implemented. This
-    is due to the fact that the tool supports a listener chain where we can
-    add various methods that are executed while the tool goes through its
-    execution life cycle.
-
-    Tool validation
-    ---------------
-    A tool implementation can provide a custom validation function that can
-    check the tools configuration and raise a :class:`ToolException` in case
-    any errors are encountered. For example, we can ensure that our tool
-    configuration contains a "input_file" parameter and the file exists:
-
-
-
-
-
-
-    This will be checked at construction time. The call method
-    takes a single dictionary as its first argument. This dictionary contains
-    the tool configuration and is also used by other methods, i.e. for
-    validation.
-
-    Optionally, you can specify any of the following class variables
-    that are used to describe the tool:
-
-    name -- the name of your tool
-    short_description -- a short description of the tool
-    long_description  -- a long description of the tool
-    version           -- a version string
-
-    In addition, you can configure the tools paramter by adding class
-    variables for `inputs`, `outputs`, and `options`. All of these take
-    a dictionary. The keys are used as parameter names and the values
-    represent the default settings.
-
-    The tool implementation also consist of a set of listeners:
-
-        * on_start
-        * on_success
-        * on_fail
-        * on_finish
-
-    The listeners are initialised from the corresponding class variables, but
-    you can also add listener functions on the instance.
-    A listener is a function implementation that takes the tool instance and
-    the configuration as as arguments. The on_start and on_finish
-    listeners are always called. on_success and on_fail are called if the tool
-    finished successfully or failed.
-    All listeners attributes are implemented as lists and you should append
-    new listeners to the lists. For example
-
-    >>> def my_start_listener(tool, args):
-    >>> ... print "Tool %s started" % (tool)
-    >>> mytool.on_start.append(my_start_listener)
-
-    This adds a new on_start method, which will be called just before the tools
-    call() method is executed.
-
-    By default, the tools class starts listening to SIGINT and SIGTERM singnals
-    and call the cleanup() and on_fail listeners. A signals of that sort is
-    treated as a execution failure. You can disable the signal handeling on
-    a class or instance level by setting the handle_signals class or instance
-    attribute to False.
-
-    .. method:: call(args)
-        Extensions of the tool class must provide a valid implementation of
-        this method. The methods implementation should execute the main tools
-        functionality and raise a :class:`ToolException` in case of an error.
-
-        :parameter args: the tools input configuration
-        :type args: dictionary
-    """
     version = None
     long_description = None
     short_description = None
