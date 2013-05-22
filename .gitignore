@@ -2,3 +2,5 @@
 .ropeproject/
 *.egg-info
 docs/build
+*.iml
+.idea/
