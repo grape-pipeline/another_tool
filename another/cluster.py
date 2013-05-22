@@ -15,7 +15,8 @@ with a non-zero exit code, which indicates the failure.
 Results of a tool run can be loaded. Their result is pickled to stdout and
 the cluster module provided the ability to load results from the log file. In
 case an exception was raised, the exception is loaded and re-raised.
-Otherwise the jobs return values is returned. This functionality is provided
+Otherwise the jobs return values is returned. This functionality
+is provided
 by the :py:class:another.cluster.Feature class. An instance of a feture is
 returned at job submission.
 """
