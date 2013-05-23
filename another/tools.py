@@ -15,6 +15,7 @@ specified using the tools `job` attribute. An instance of
 """
 import logging
 from tempfile import NamedTemporaryFile
+import inspect
 import subprocess
 import signal
 import textwrap
@@ -62,6 +63,20 @@ class ValidationException(Exception):
         """
         Exception.__init__(self, "Validation Error")
         self.errors = errors
+
+    def __unicode__(self):
+        return self.__str__()
+
+    def __str__(self):
+        return self.__repr__()
+
+    def __repr__(self):
+        s = "Pipeline Validation failed!\n"
+        if self.errors is None:
+            return s
+        for field, msg in self.errors.items():
+            s += "%s\t: %s\n" % (field, msg)
+        return s
 
 
 class Job(object):
@@ -131,18 +146,35 @@ class Job(object):
         self.jobid = None
 
 
+class ToolMetaClass(type):
+    """Tool meta class to be able to
+    set class level properties"""
+    __none_values = ["name", "version", "long_description", "short_description"]
+    __list_values = ["on_start", "on_success", "on_fail", "on_finish"]
+    __dict_values = ["inputs", "outputs", "options"]
+    __bool_values_true = ["handle_signals"]
+    __bool_values_false = []
+
+    def __getattr__(cls, name):
+        value = None
+        if name in ToolMetaClass.__none_values:
+            value = None
+            if name == "name":
+                value = cls.__class__.name
+        if name in ToolMetaClass.__list_values:
+            value = []
+        if name in ToolMetaClass.__dict_values:
+            value = {}
+        if name in ToolMetaClass.__bool_values_true:
+            value = True
+        if name in ToolMetaClass.__bool_values_false:
+            value = False
+        setattr(cls, name, value)
+        return value
+
+
 class Tool(object):
-    version = None
-    long_description = None
-    short_description = None
-    on_start = []
-    on_finish = []
-    on_success = []
-    on_fail = []
-    handle_signals = True
-    inputs = {}
-    outputs = {}
-    options = {}
+    __metaclass__ = ToolMetaClass
 
     def __init__(self, name=None):
         """Default Tool constructor creates a new instance and optionally
@@ -187,6 +219,9 @@ class Tool(object):
 
         # save signals
         self._received_signal = None
+
+    def __getatt__(self, name):
+        print "GET ATTR", name
 
     @property
     def log(self):
@@ -292,7 +327,7 @@ class Tool(object):
             if "cleanup" not in state:
                 state.append("cleanup")
                 self.cleanup(args, failed=True)
-            raise e
+            raise ToolException("Tool execution of %s failed : %s" % (self.name, str(e)), e)
         finally:
             if "on_finish" not in state:
                 state.append("on_finish")
@@ -331,7 +366,17 @@ class Tool(object):
         if listener_list is not None:
             for listener in listener_list:
                 try:
-                    listener(self, args)
+                    # gues the parameter arguments
+                    args = inspect.getargspec(listener)
+                    if len(args.args) == 0:
+                        listener()
+                    elif len(args.args) == 1:
+                        listener(self)
+                    else:
+                        if args.keywords is not None:
+                            listener(self, **args)
+                        else:
+                            listener(self, args)
                 except Exception, e:
                     self.log.warn("Listener call %s failed with"
                                   " exception: %s", listener, e)
@@ -354,13 +399,19 @@ class Tool(object):
         If `inputs` is not defined, this always returns True, otherwise
         False is returned if one if the keys in `inputs` is not contained
         in the kwargs"""
-        if self.__class__.inputs is None:
+        if self.inputs is None:
             return True
 
-        for k, v in self.__class__.inputs.items():
+        errors = {}
+        for k, v in self.inputs.items():
             if not k in args:
-                return False
-        return True
+                errors[k] = "Configuration value not specified"
+            else:
+                v = args[k]
+                if v is None:
+                    errors[k] = "No value specified for %s" % (k)
+        if len(errors) > 0:
+            raise ValidationException(errors)
 
     def returns(self, args):
         """Default implementation of returns evaluates the returns class
@@ -377,10 +428,12 @@ class Tool(object):
         r = self.outputs
         if r is None:
             return None
-
         if isinstance(r, dict):
             # interprete it as a map and evaluate the values
             for k, v in r.items():
+                # override the value from args if its there
+                if k in args and args[k] is not None:
+                    v = args[k]
                 ev = self.__evaluate_returns_value(v, args)
                 if ev is not None:
                     if isinstance(ev, (list, tuple,)):
@@ -394,6 +447,7 @@ class Tool(object):
                     rets.extend(ev)
                 else:
                     rets.append(ev)
+
         if len(rets) == 0:
             return None
         return rets
@@ -416,7 +470,8 @@ class Tool(object):
             args = {}
         if isinstance(r, basestring):
             # render template
-            return Template(r).render(tool=self, **args)
+            t = Template(r).render(tool=self, **args)
+            return t
         if callable(r):
             # call function
             return r(args)

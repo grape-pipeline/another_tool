@@ -1,0 +1,57 @@
+#!/usr/bin/env python
+# This is a non-functional "interleave" that
+# mimics something that takes two fastq files and
+# output an interleaved version
+
+import argparse
+import logging
+import sys
+import os
+
+if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format='[%(levelname)s] : %(message)s')
+
+    parser = argparse.ArgumentParser(prog="interleave", description="""
+    Simpulates interleaveing two fastq files. Prints to stdout if no
+    output file is specified.
+    """)
+    parser.add_argument("-o", "--output", help="Output file")
+    parser.add_argument("input", help="Input files", nargs=2)
+    parser.add_argument("--fail", help="Trigger a failure", action="store_true", default=False)
+    parser.add_argument("--log", help="Set the log level",
+                        choices=["DEBUG", "INFO", "WARN", "ERROR"],
+                        default="ERROR")
+
+    args = parser.parse_args()
+    # set log level
+    logging.getLogger().setLevel(
+        {
+            "ERROR": logging.ERROR,
+            "WARN": logging.WARNING,
+            "INFO": logging.INFO,
+            "DEBUG": logging.DEBUG
+        }[args.log]
+    )
+
+    for fn in args.input:
+        if not os.path.exists(fn):
+            logging.error("File not found : %s" % fn)
+            sys.exit(1)
+
+    # do some checks
+    if args.fail:
+        logging.error("Fail requested")
+        sys.exit(1)
+
+    logging.info("Merging files " % (args.input))
+
+    of = sys.stdout
+    if args.output is not None:
+        of = open(args.output, 'w')
+    # do something super useful
+    of.write("@READ/1\nACGCGT\n+\nDDDDDD\n")
+    of.write("@READ/2\nCGACGT\n+\nDDDDDD\n")
+    if args.output is not None:
+        of.close()
+
+    logging.info("Done :)")

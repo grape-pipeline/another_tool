@@ -17,6 +17,20 @@ class PipelineException(Exception):
         if "circular_dependencies" in kwargs:
             self.circular_dependencies = kwargs["circular_dependencies"]
 
+    def __repr__(self):
+        if len(self.validation_errors) > 0:
+            s = "Pipeline validation failed for: \n\n"
+            for tool, errors in self.validation_errors.items():
+                s += "%s:\n" % (tool)
+                for field, msg in errors.items():
+                    s += "\t%s\t: %s" % (field, msg)
+            return s
+        return Exception.__repr__(self)
+
+    def __str__(self):
+        return self.__repr__()
+
+
 
 class CircularDependencyException(Exception):
     """Exception that is raised by the pipeline when a circular
@@ -130,8 +144,27 @@ class Pipeline(object):
             raise ValueError("No tool specified")
         if not isinstance(tool, PipelineTool):
             tool = self.tools[tool]
-
         return tool.get_configuration()
+
+    def run(self):
+        """Get the pipeline tools in order and execute them"""
+        steps = self.get_sorted_tools()
+        for i, step in enumerate(steps):
+            if not step.is_done():
+                step.run()
+
+    def submit(self, grid):
+        """Simple submission wrapper that sends this pipeline to the given
+        cluster implementation and returns a list of jobs
+
+        """
+        steps = self.get_sorted_tools()
+        features = []
+        for i, step in enumerate(steps):
+            if not step.is_done():
+                features.append(grid.submit(step, step.get_configuration()))
+        return features
+
 
     def get_sorted_tools(self):
         """Returns all tools in the pipeline in execution order. This does
