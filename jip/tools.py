@@ -13,15 +13,9 @@ How a tool is executed locally or on a remote cluster can be further
 specified using the tools `job` attribute. An instance of
 :class:`jip.tools.Job` is associated with each tool instance.
 """
-import logging
-from tempfile import NamedTemporaryFile
-import inspect
-import subprocess
-import signal
-import textwrap
-import os
 
-from mako.template import Template
+import signal
+import os
 
 
 class ToolException(Exception):
@@ -233,6 +227,7 @@ class Tool(object):
 
     @property
     def log(self):
+        import logging
         return logging.getLogger(self.name)
 
     def __check_call_method(self):
@@ -375,6 +370,7 @@ class Tool(object):
         the list is None, nothing is called.
         """
         if listener_list is not None:
+            import inspect
             for listener in listener_list:
                 try:
                     # gues the parameter arguments
@@ -483,6 +479,7 @@ class Tool(object):
             args = {}
         if isinstance(r, basestring):
             # render template
+            from mako.template import Template
             t = Template(r).render(tool=self, **args)
             return t
         if callable(r):
@@ -544,6 +541,9 @@ class Tool(object):
 
         """
         # write the template
+        from tempfile import NamedTemporaryFile
+        import subprocess
+
         script_file = NamedTemporaryFile()
         script_file.write(self.get_command(args))
         script_file.flush()
@@ -591,6 +591,9 @@ class Tool(object):
         """Take the tools configuration dictionary and returns the string
         representation of the command script.
         """
+        import textwrap
+        from mako.template import Template
+
         if args is None:
             args = {}
         args["job"] = self.job
