@@ -7,7 +7,7 @@ that ensures that the tools configuration is valid and the tool ca be
 executed.
 
 The main tool class that should be extended to implement
-custom tools that execute logic is :class:`another.tools.Tool`. The tools
+custom tools that execute logic is :class:`jip.tools.Tool`. The tools
 logic must be implemented in the :func:`call` method.
 The constructor checks for an implementation of the :func:`call` method and a
 :class:`ToolException` is raised if no implementation is found.
@@ -19,7 +19,7 @@ the tool or that are involved in the tools execution flow.
 The simplest way to create custom tool implementation that is based on
 python code just implements the :func:`call` method. For example:
 
-    >>> from another.tools import Tool
+    >>> from jip.tools import Tool
     >>> class MyTool(Tool):
     ...     def call(self, args):
     ...         print "MyTool is configured with", args
@@ -34,9 +34,9 @@ execution step. This already works with the example above:
     >>> tool.run(cfg)
     MyTool is configured with {'a': 1, 'b': 2}
 
-Note that the default implementation of :func:`another.tool.Tool.validate`
+Note that the default implementation of :func:`jip.tool.Tool.validate`
 does not perform any checks. Note also that we call the tools :func:`run`
-method to execute the tool rather then the :func:`another.tool.Tool.call` method
+method to execute the tool rather then the :func:`jip.tool.Tool.call` method
 that we just implemented. This is due to the fact that the tool supports a
 listener chain where we can add various methods that are executed while the
 tool goes through its execution life cycle.
@@ -48,7 +48,7 @@ check the tools configuration and raise a :class:`ValidationException` in
 case any errors are encountered. For example, we can ensure that our tool
 configuration contains an ``input_file`` parameter:
 
-    >>> from another.tools import Tool, ValidationException
+    >>> from jip.tools import Tool, ValidationException
     >>> class MyTool(Tool):
     ...     def call(self, args):
     ...         pass
@@ -61,7 +61,7 @@ configuration contains an ``input_file`` parameter:
     Traceback (most recent call last):
       File "<stdin>", line 1, in <module>
       File "<stdin>", line 6, in validate
-    another.tools.ValidationException: Validation Error
+    jip.tools.ValidationException: Validation Error
 
 You may have noticed the *incoming* parameter. This is an additional
 parameter that is set if your tool implementation is executed within a
@@ -144,17 +144,17 @@ instance attribute to ``False``.
 Classes
 -------
 
-.. autoclass:: another.tools.Tool
+.. autoclass:: jip.tools.Tool
     :members:
 
-.. autoclass:: another.tools.Job
+.. autoclass:: jip.tools.Job
     :members:
 
 Exceptions and Errors
 ---------------------
 
-.. autoclass:: another.tools.ToolException
+.. autoclass:: jip.tools.ToolException
     :members:
 
-.. autoclass:: another.tools.ValidationException
+.. autoclass:: jip.tools.ValidationException
     :members:

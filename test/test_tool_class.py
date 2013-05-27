@@ -3,7 +3,7 @@
 and its implementation
 """
 
-from another.tools import Tool, ToolException
+from jip.tools import Tool, ToolException
 
 
 def test_tool_with_valid_tool_name():

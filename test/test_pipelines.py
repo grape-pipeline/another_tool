@@ -1,6 +1,6 @@
 #!/usr/bin/env python
-from another.pipelines import Pipeline, PipelineTool, CircularDependencyException
-from another.tools import Tool
+from jip.pipelines import Pipeline, PipelineTool, CircularDependencyException
+from jip.tools import Tool
 import pytest
 
 

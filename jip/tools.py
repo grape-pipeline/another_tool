@@ -11,7 +11,7 @@ the results are available.
 
 How a tool is executed locally or on a remote cluster can be further
 specified using the tools `job` attribute. An instance of
-:class:`another.tools.Job` is associated with each tool instance.
+:class:`jip.tools.Job` is associated with each tool instance.
 """
 import logging
 from tempfile import NamedTemporaryFile
@@ -81,7 +81,7 @@ class ValidationException(Exception):
 
 class Job(object):
     """An instance of Job defines how a :class:`Tool` is executed on a
-    :class:`another.cluster.Cluster` instance or locally. The Job provides an
+    :class:`jip.cluster.Cluster` instance or locally. The Job provides an
     easy way to create a runtime configuration that is then evaluated during
     job submission or execution.
 
@@ -89,7 +89,7 @@ class Job(object):
     working directory, also general submission parameters can be set. This
     covers the basic template that is used to run a job in the cluster,
     and the *header* extension of the default template. For more details on
-    the template and the header extension, see :class:`another.cluster.Cluster`.
+    the template and the header extension, see :class:`jip.cluster.Cluster`.
 
     Properties:
         template: string

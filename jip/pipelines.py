@@ -1,8 +1,8 @@
 #!/usr/bin/env python
-"""Another tool pipeline impplementation to create pipelines of tools.
+"""Another tool pipeline implementation to create pipelines of tools.
 """
 from functools import reduce
-from another.tools import ValidationException
+from jip.tools import ValidationException
 
 
 class PipelineException(Exception):
@@ -53,12 +53,12 @@ class Pipeline(object):
         >>> a = pipeline.add(MyTool(), "a")
         >>> a.input = "myfile.txt"
 
-    Here we creat a new pipeline and add a tool we call "a". We specify
+    Here we create a new pipeline and add a tool we call "a". We specify
     the name explicitly here, otherwise the tools name is used. Then
     we assign the `input` value for the tool. The name is important here
     as it can be used to lookup tools in the pipeline:
 
-        >>> b = pipeline.add("a")
+        >>> b = pipeline.get("a")
         >>> assert a == b
 
     """

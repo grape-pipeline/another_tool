@@ -1,6 +1,6 @@
-Another tools: another.cluster Package
+Another tools: jip.cluster Package
 ======================================
 
-:mod:`another.cluster`
+:mod:`jip.cluster`
 
-.. automodule:: another.cluster
+.. automodule:: jip.cluster

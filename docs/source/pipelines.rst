@@ -1,6 +1,6 @@
-Another tools: another.pipelines Package
+Another tools: jip.pipelines Package
 ========================================
 
-:mod:`another.pipelines`
+:mod:`jip.pipelines`
 
-.. automodule:: another.pipelines
+.. automodule:: jip.pipelines

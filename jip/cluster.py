@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""The another tool library provides the necessary infrastructure to submit
+"""The jip tool library provides the necessary infrastructure to submit
 tool instances to a remote execution cluster. All the methods to implement
 the cluster integration are contained in this module.
 
@@ -17,7 +17,7 @@ the cluster module provided the ability to load results from the log file. In
 case an exception was raised, the exception is loaded and re-raised.
 Otherwise the jobs return values is returned. This functionality
 is provided
-by the :py:class:another.cluster.Feature class. An instance of a feture is
+by the :py:class:jip.cluster.Feature class. An instance of a feture is
 returned at job submission.
 """
 import logging
@@ -26,8 +26,8 @@ import os
 import sys
 import time
 from mako.template import Template
-from another.tools import Tool
-from another.pipelines import PipelineTool
+from jip.tools import Tool
+from jip.pipelines import PipelineTool
 import cPickle
 
 # result separator

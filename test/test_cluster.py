@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 """Test parts of the cluster implementation"""
-from another.tools import Tool
-from another.cluster import Cluster
+from jip.tools import Tool
+from jip.cluster import Cluster
 
 
 class MyTool(Tool):

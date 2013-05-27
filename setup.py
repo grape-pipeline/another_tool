@@ -12,5 +12,5 @@ setup(
     url='',
     license="BSD",
     long_description='''This is yet another pipeline library''',
-    packages=['another'],
+    packages=['jip'],
 )

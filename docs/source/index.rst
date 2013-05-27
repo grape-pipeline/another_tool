@@ -6,7 +6,7 @@
 Welcome to Another Tool's API documentation
 ===========================================
 
-.. automodule:: another
+.. automodule:: jip
 
 Contents:
 
