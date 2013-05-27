@@ -4,7 +4,7 @@ import jip
 from setuptools import setup
 
 setup(
-    name='another_tool',
+    name='jip',
     version=jip.__version__,
     description='JIP pipeline library',
     author='Thasso Griebel',
