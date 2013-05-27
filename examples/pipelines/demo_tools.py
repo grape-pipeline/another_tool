@@ -1,7 +1,7 @@
-from another.tools import BashTool, ValidationException
-from another.pipelines import Pipeline, PipelineException
+from jip.tools import Tool, ValidationException
+from jip.pipelines import Pipeline, PipelineException
 
-class Interleaver(BashTool):
+class Interleaver(Tool):
     inputs = {
         "reads": None,
     }
@@ -13,7 +13,7 @@ class Interleaver(BashTool):
     '''
 
 
-class Aligner(BashTool):
+class Aligner(Tool):
     inputs = {
         "index": None,
         "reads": None
@@ -26,13 +26,13 @@ class Aligner(BashTool):
     """
 
     def validate(self, args, incoming=None):
-        BashTool.validate(self, args, incoming)
+        Tool.validate(self, args, incoming)
         # check that this is a gem index
         if not args["index"].endswith(".gem"):
             raise ValidationException({"index": "The given index does not seem to be a gem index!"})
 
 
-class Quantifier(BashTool):
+class Quantifier(Tool):
     inputs = {
         "annotation": None,
         "alignment": None

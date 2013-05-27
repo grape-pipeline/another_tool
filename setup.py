@@ -1,12 +1,12 @@
 from distribute_setup import use_setuptools
 use_setuptools()
-import another
+import jip
 from setuptools import setup
 
 setup(
     name='another_tool',
-    version=another.__version__,
-    description='Another pipeline library',
+    version=jip.__version__,
+    description='JIP pipeline library',
     author='Thasso Griebel',
     author_email='thasso.griebel@gmail.com',
     url='',
