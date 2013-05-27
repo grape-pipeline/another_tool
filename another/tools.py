@@ -156,12 +156,17 @@ class ToolMetaClass(type):
 
     def __getattr__(cls, name):
         value = None
+        found = False
         if name in ToolMetaClass.__list_values:
             value = []
+            found = True
         if name in ToolMetaClass.__dict_values:
             value = {}
-        setattr(cls, name, value)
-        return value
+            found = True
+        if found:
+            setattr(cls, name, value)
+            return value
+        raise AttributeError("Attribute %s not found" % name)
 
 
 class Tool(object):
@@ -171,6 +176,8 @@ class Tool(object):
     long_description = None
     short_description = None
     handle_signals = True
+    interpreter = "bash"
+    command = None
 
     def __init__(self, name=None):
         """Default Tool constructor creates a new instance and optionally
@@ -216,8 +223,13 @@ class Tool(object):
         # save signals
         self._received_signal = None
 
-    def __getatt__(self, name):
-        print "GET ATTR", name
+        # setup the process and check for the interpreter
+        self.__process = None
+        if self.__class__.interpreter is None:
+            raise ToolException("No interpreter specified. Ensure that "
+                                "your tool implementation provides a "
+                                "interpreter name!")
+
 
     @property
     def log(self):
@@ -242,7 +254,10 @@ class Tool(object):
 
         try:
             clname = getattr(self.__class__, "name")
-            self.name = clname
+            if clname is not None:
+                self.name = clname
+            else:
+                self.name = self.__class__.__name__
         except AttributeError:
             self.name = self.__class__.__name__
 
@@ -294,13 +309,13 @@ class Tool(object):
 
     def __execute(self, state, args):
         """Internal method that does the actual execution of the
-        call method after singlan handler are set up.
+        call method after signal handler are set up.
         This method is responsible for calling the listeners
         and executing call. It returns the call return value.
 
         Parameter
         ---------
-        state - the state list that is used to synchronize listner calls
+        state - the state list that is used to synchronize listener calls
                 between this method and any signal handlers
         args  - the tools configuration dictionary
         """
@@ -421,14 +436,15 @@ class Tool(object):
         is returned as is.
         """
         rets = []
-        r = self.outputs
-        if r is None:
+        local_outputs = self.outputs
+        if local_outputs is None:
             return None
-        if isinstance(r, dict):
+
+        if isinstance(local_outputs, dict):
             # interprete it as a map and evaluate the values
-            for k, v in r.items():
+            for k, v in local_outputs.items():
                 # override the value from args if its there
-                if k in args and args[k] is not None:
+                if args is not None and k in args and args[k] is not None:
                     v = args[k]
                 ev = self.__evaluate_returns_value(v, args)
                 if ev is not None:
@@ -436,8 +452,9 @@ class Tool(object):
                         rets.extend(ev)
                     else:
                         rets.append(ev)
+
         else:
-            ev = self.__evaluate_returns_value(r, args)
+            ev = self.__evaluate_returns_value(local_outputs, args)
             if ev is not None:
                 if isinstance(ev, (list, tuple,)):
                     rets.extend(ev)
@@ -519,53 +536,6 @@ class Tool(object):
         config.update(self.options)
         return config
 
-
-class InterpretedTool(Tool):
-    """Subclass of :class:Tool that supports a command that
-    is rendered to a script and executed by the specified interpreter.
-
-    The interpreter and the command template are specified as class
-    variables. Subclasses have to specify at least the interpreter. The
-    command is optional and can be omitted if a custom implementation of
-    the get_command() method is given.
-
-    The default get_command() implementation uses a mako template to render
-    the final result.
-
-    The InterpreterTool also has a return value. The commands outputs are
-    provided by the returns() method. By default, this returns the values from
-    the `outputs` class variable, but when called, all call parameters are
-    passed to the method. Custom implementations of returns() can use the
-    tools run configuration to dynamically return values.
-
-    In addition, the default implementation of returns() evaluates functions
-    set to the class variable returns. This can be used to quickly and easily
-    return dynamic content without overriding returns(). Passed functions are
-    called with the tool instance as first argument followed bu *args and
-    **kwargs passed to the call method.
-
-    For example, you can pass a lambda function as return like this:
-
-    >>>class MyTool(Tool):
-    >>>    name = "MyTool"
-    >>>    returns = labmda tool: "my return value"
-
-    """
-
-    interpreter = None
-    command = None
-
-    def __init__(self, name=None):
-        """Ensures that the interpreter is specified and throws
-        a ToolException if not.
-        """
-        Tool.__init__(self, name=name)
-        self.__process = None
-        if self.__class__.interpreter is None:
-            raise ToolException("No interpreter specified. Ensure that "
-                                "your tool implementation provides a "
-                                "interpreter name!")
-
     def call(self, args):
         """The interpreter tool call writes the rendered command
         template to a temporary file on disk and calls the interpreter
@@ -588,7 +558,7 @@ class InterpretedTool(Tool):
                 stderr = open("/dev/null", "w")
 
             self.__process = subprocess.Popen([self.__class__.interpreter,
-                                              script_file.name], shell=False,
+                                               script_file.name], shell=False,
                                               stdout=stdout,
                                               stderr=stderr)
             exit_value = self.__process.wait()
@@ -626,9 +596,3 @@ class InterpretedTool(Tool):
         args["job"] = self.job
         rendered = Template(self.__class__.command).render(tool=self, **args)
         return textwrap.dedent(rendered)
-
-
-
-class BashTool(InterpretedTool):
-    """Interpreter tool that uses bash for execution"""
-    interpreter = "bash"

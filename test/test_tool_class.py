@@ -3,7 +3,7 @@
 and its implementation
 """
 
-from another.tools import Tool, InterpretedTool, ToolException, BashTool
+from another.tools import Tool, ToolException
 
 
 def test_tool_with_valid_tool_name():
@@ -62,7 +62,7 @@ def test_simple_python_tool_definition():
 
 
 def test_command_rendering_with_args_and_kwargs():
-    class MyTool(InterpretedTool):
+    class MyTool(Tool):
         name = "Mytool"
         interpreter = "bash"
         command = " ${a} + ${b} with addition=${addition}"
@@ -72,7 +72,7 @@ def test_command_rendering_with_args_and_kwargs():
 
 
 def test_interpreter_tool_returns_method_none():
-    class MyTool(InterpretedTool):
+    class MyTool(Tool):
         name = "Mytool"
         interpreter = "bash"
         command = " ${a} + ${b} with addition=${addition}"
@@ -82,7 +82,7 @@ def test_interpreter_tool_returns_method_none():
 
 
 def test_interpreter_tool_returns_method_string():
-    class MyTool(InterpretedTool):
+    class MyTool(Tool):
         name = "Mytool"
         interpreter = "bash"
         command = " ${a} + ${b} with addition=${addition}"
@@ -93,7 +93,7 @@ def test_interpreter_tool_returns_method_string():
 
 
 def test_interpreter_tool_returns_method_function():
-    class MyTool(InterpretedTool):
+    class MyTool(Tool):
         name = "Mytool"
         interpreter = "bash"
         command = " ${a} + ${b} with addition=${addition}"
@@ -122,7 +122,7 @@ def test_on_start_listener_calls():
 
 
 def test_paramter_defs_and_file_cleanup():
-    class FastQC(BashTool):
+    class FastQC(Tool):
         name = "fastqc"
         command = """
         fastqc ${" ".join(args)}

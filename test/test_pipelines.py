@@ -1,20 +1,20 @@
 #!/usr/bin/env python
 from another.pipelines import Pipeline, PipelineTool, CircularDependencyException
-from another.tools import BashTool
+from another.tools import Tool
 import pytest
 
 
-class SimpleTool(BashTool):
+class SimpleTool(Tool):
     pass
 
 
-class Touch(BashTool):
+class Touch(Tool):
     command = """touch ${name}"""
     inputs = {"name": None}
     outputs = {"file": "${name}"}
 
 
-class Split(BashTool):
+class Split(Tool):
     command = """split ${file} ${count} ${prefix}"""
     inputs = {"file": None,
               "count": None,
@@ -30,13 +30,13 @@ def test_pipeline_tool_get_attribute_instance_vars():
 
 
 def test_pipeline_tool_get_attribute_exception():
-    p = PipelineTool("pipeline", BashTool(), "bash")
+    p = PipelineTool("pipeline", Tool(), "bash")
     with pytest.raises(AttributeError) as excinfo:
         p.unknown
 
 
 def test_pipeline_tool_set_unknown_attribute():
-    p = PipelineTool("pipeline", BashTool(), "bash")
+    p = PipelineTool("pipeline", Tool(), "bash")
     p.unknown = 1
     assert p.unknown.get() == 1
     assert p._kwargs["unknown"].value == 1
