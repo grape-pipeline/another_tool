@@ -148,33 +148,29 @@ class Job(object):
 
 class ToolMetaClass(type):
     """Tool meta class to be able to
-    set class level properties"""
-    __none_values = ["name", "version", "long_description", "short_description"]
+    set class level properties that have mutable lists or dictionaries
+    as default values
+    """
     __list_values = ["on_start", "on_success", "on_fail", "on_finish"]
     __dict_values = ["inputs", "outputs", "options"]
-    __bool_values_true = ["handle_signals"]
-    __bool_values_false = []
 
     def __getattr__(cls, name):
         value = None
-        if name in ToolMetaClass.__none_values:
-            value = None
-            if name == "name":
-                value = cls.__class__.name
         if name in ToolMetaClass.__list_values:
             value = []
         if name in ToolMetaClass.__dict_values:
             value = {}
-        if name in ToolMetaClass.__bool_values_true:
-            value = True
-        if name in ToolMetaClass.__bool_values_false:
-            value = False
         setattr(cls, name, value)
         return value
 
 
 class Tool(object):
     __metaclass__ = ToolMetaClass
+    name = None
+    version = None
+    long_description = None
+    short_description = None
+    handle_signals = True
 
     def __init__(self, name=None):
         """Default Tool constructor creates a new instance and optionally
