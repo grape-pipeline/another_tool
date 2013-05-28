@@ -121,6 +121,25 @@ def test_on_start_listener_calls():
     assert called[0] is True
 
 
+def test_listeners_work_with_callable_classes():
+    called = [False]
+
+    class MyListener(object):
+        def __call__(self, *args, **kwargs):
+            called[0] = True
+
+    class MyTool(Tool):
+        name = "Mytool"
+        on_start = [MyListener()]
+
+        def call(self, args):
+            pass
+
+    t = MyTool()
+    t.run(None)
+    assert called[0] is True
+
+
 def test_paramter_defs_and_file_cleanup():
     class FastQC(Tool):
         name = "fastqc"

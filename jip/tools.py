@@ -373,8 +373,13 @@ class Tool(object):
             import inspect
             for listener in listener_list:
                 try:
+                    # make sure listener is a function or a callable
+                    inspect_target = listener
+                    if not inspect.isfunction(listener):
+                        inspect_target = listener.__call__
+
                     # gues the parameter arguments
-                    args = inspect.getargspec(listener)
+                    args = inspect.getargspec(inspect_target)
                     if len(args.args) == 0:
                         listener()
                     elif len(args.args) == 1:
