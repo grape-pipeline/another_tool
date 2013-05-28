@@ -379,13 +379,13 @@ class Tool(object):
                         inspect_target = listener.__call__
 
                     # gues the parameter arguments
-                    args = inspect.getargspec(inspect_target)
-                    if len(args.args) == 0:
+                    argspec = inspect.getargspec(inspect_target)
+                    if len(argspec.args) == 0:
                         listener()
-                    elif len(args.args) == 1:
+                    elif len(argspec.args) == 1:
                         listener(self)
                     else:
-                        if args.keywords is not None:
+                        if argspec.keywords is not None:
                             listener(self, **args)
                         else:
                             listener(self, args)
