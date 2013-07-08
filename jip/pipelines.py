@@ -62,9 +62,10 @@ class Pipeline(object):
         >>> assert a == b
 
     """
-    def __init__(self, name=None):
+    def __init__(self, name="pipeline"):
         self.tools = {}
         self.name = name
+        self.last = None  # last added PipelineTool or list of tools
 
     def add(self, tool, name=None):
         """Add a tool to the pipeline. The method returns the tool
@@ -78,16 +79,24 @@ class Pipeline(object):
         name - optional name of the tool within the pipeline context
         """
         if name is None:
-            name = tool.name
+            import jip.tools
+            if isinstance(tool, jip.tools.Tool):
+                name = tool.name
+            else:
+                name = tool._name
         if name in self.tools:
-            raise PipelineException("A tool with the name %s "
-                                    "already exists in the"
-                                    " pipeline. Please specify the "
-                                    "name explicitly"
-                                    " when calling add()!")
-
-        wrapper = PipelineTool(self, tool, name)
+            count = 2
+            while name in self.tools:
+                name = name + "." + str(count)
+                count += 1
+        if isinstance(tool, PipelineTool):
+            wrapper = tool
+            wrapper._pipeline = self
+            wrapper._name = name
+        else:
+            wrapper = PipelineTool(self, tool, name)
         self.tools[name] = wrapper
+        self.last = wrapper
         return wrapper
 
     def validate(self):
@@ -243,6 +252,66 @@ class Pipeline(object):
         if len(cycles) > 0:
             raise CircularDependencyException(cycles[0])
 
+    def __enter__(self):
+        return self
+
+    def __exit__(self, type, value, traceback):
+        pass
+
+    def __lshift__(self, tool):
+        # Left shift << adds a tool instance to the pipeline
+        print ">>>PIPELINE ADD:", tool
+        if isinstance(tool, Pipeline):
+            for k, v in tool.tools.items():
+                self.add(v)
+        else:
+            self.add(tool)
+        return self
+
+    def __or__(self, tool):
+        print ">>>PIPELINE OR:", str(self), str(tool)
+        # or | pipe creates a dependency between last added tool
+        # output and current tool input
+        if not isinstance(tool, (list, tuple)):
+            tool = [tool]
+
+        last = self.last
+        if not isinstance(last, (list, tuple)):
+            last = [last]
+        added = list([self.add(t) for t in tool])
+        self.last = added
+
+        if last is not None:
+            # link the input/output
+            #[last.get_dependencies().append(t) for t in tool]
+            outputs = [l.get_default_output() for l in last]
+            for t in added:
+                out = outputs
+                if len(out) == 0:
+                    out = None
+                if len(out) == 1:
+                    out = out[0]
+
+                t.__setattr__(t.get_default_input(), out)
+
+        return self
+
+    def __and__(self, tool):
+        print ">>>PIPELINE AND:", self, tool
+        # resolve pipeline
+        if isinstance(tool, Pipeline):
+            tools = []
+            for k, t in tool._tools.items():
+                tools.append(t)
+            tool = tools
+
+        # make sure we have a list
+        if not isinstance(tool, (list, tuple)):
+            tool = [tool]
+        # just add the tools
+        added = list([self.add(t) for t in tool])
+        self.last = added
+
     def __repr__(self):
         return self.name
 
@@ -383,6 +452,16 @@ class PipelineTool(object):
             self._tool.job.threads = value
         else:
             object.__setattr__(self, name, value)
+
+    def get_default_input(self):
+        """Return the default input option"""
+        for k, v in self._tool.inputs.items():
+            return k
+
+    def get_default_output(self):
+        """Return the default input option"""
+        for k, v in self._tool.outputs.items():
+            return self.__getattr__(k)
 
     def __repr__(self):
         return self._name

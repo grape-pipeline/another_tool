@@ -236,10 +236,6 @@ class parameter(object):
                             choices=self.choices)
 
 
-
-
-
-
 class Tool(object):
     __metaclass__ = ToolMetaClass
     name = None
@@ -316,7 +312,6 @@ class Tool(object):
                 target[k] = v.default
             else:
                 target[k] = v
-
 
     @property
     def log(self):
@@ -705,3 +700,20 @@ class Tool(object):
         """
         for p in self._params:
             p.add(self, parser, key=self._param_keys[p])
+
+    def __and__(self, other):
+        """ Concatenate two tools running in parallel to a new pipeline"""
+        print ">>>TOOL AND:", self, other
+        from jip.pipelines import Pipeline
+        p = Pipeline()
+        p << self & other
+        return p
+
+    def __or__(self, other):
+        """ Concatenate two tools running with dependencies
+        to a new pipeline"""
+        print ">>>TOOL OR:", self, other
+        from jip.pipelines import Pipeline
+        p = Pipeline()
+        p << self | other
+        return p

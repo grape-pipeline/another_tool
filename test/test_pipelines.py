@@ -134,5 +134,26 @@ def test_pipeline_circular_dependencies_complex_loop():
     print excinfo.value.circle == [a, b, c, d]
 
 
+def test_pipeline_with_statement():
+    p = Pipeline()
+    with p:
+        p << Touch() | Split()
+
+    assert p.get_sorted_tools() == [p.get("Touch"), p.get("Split")]
+    assert p.get("Touch").get_dependencies() == set([])
+    assert p.get("Split").get_dependencies() == set([p.get("Touch")])
+
+
+def test_pipeline_add_parallal_tools():
+    p = Pipeline()
+    with p:
+        p << (Touch() | Split()) & Split()
+
+    print str(list([t._name for t in p.get_sorted_tools()]))
+    #assert p.get_sorted_tools() == [p.get("Touch"), p.get("Split")]
+    #assert p.get("Touch").get_dependencies() == set([])
+    #assert p.get("Split").get_dependencies() == set([p.get("Touch")])
+
+
 if __name__ == "__main__":
     test_pipeline_circular_dependencies_complex_loop()
