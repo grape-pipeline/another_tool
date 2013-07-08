@@ -312,6 +312,9 @@ class PipelineTool(object):
         """Delegate to the tools cleanup method"""
         self._tool.cleanup(self.get_configuration(), failed=failed)
 
+    def add_arguments(self, parser):
+        self._tool.add_arguments(parser)
+
     def get_incoming_configuration(self):
         """Creates the configuration dictionary and but excludes entries
         that are set explicitly for this tool and includes only the fields
@@ -376,6 +379,8 @@ class PipelineTool(object):
         elif name == "job":
             # delegate to the tools job
             self._tool.job = value
+        elif name == "threads":
+            self._tool.job.threads = value
         else:
             object.__setattr__(self, name, value)
 

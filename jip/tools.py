@@ -163,6 +163,83 @@ class ToolMetaClass(type):
         raise AttributeError("Attribute %s not found" % name)
 
 
+class parameter(object):
+    """Helper class to define argparse compatible parameter"""
+    def __init__(self, short=None, help=None,
+                 required=None, default=None,
+                 type=None, nargs=None,
+                 choices=None, action=None, metavar=None):
+        """Create a new parameter instance
+
+        :param help: The help message
+        :type help: string
+        :param required: required parameter
+        :type required: bool
+        :param default: the default value
+        :type default: object
+        :param type: the type
+        :type type: object
+        :param nargs: number of arguments
+        :type nargs: string
+        :param choices: available choices
+        :type choices: list of string
+        :param action: add a custom action
+        :type action: string
+        :param metavar: the metavar
+        :type metavar: string
+
+        """
+        self.help = help
+        self.short = short
+        self.required = required
+        self.default = default
+        self.type = type
+        self.nargs = nargs
+        self.choices = choices
+        self.action = action
+        self.metavar = metavar
+
+    def add(self, tool, parser, key=None, prefix=None):
+        """Translate this parameter into an argparse argument and add it
+        to the given parser
+
+        :param tool: the tool instance
+        :type tool: Tool
+        :param parser: the argument parser
+        :type parser: argparse.ArgumentParser
+        :param key: the configuration key. If its not specified, the tools configuration is searched
+        :type key: string
+        """
+        if key is None:
+            if parameter not in tool._param_keys:
+                return  # not found, # todo: raise exception ?
+            key = tool._param_keys[parameter]
+            if key is None:
+                return
+        if prefix is None:
+            prefix=""
+        else:
+            prefix += "-"
+
+        names = ["--" + prefix + key.replace("_", "-")]
+        if self.short is not None:
+            names.append(self.short)
+        parser.add_argument(*names,
+                            dest=key,
+                            help=self.help,
+                            required=self.required,
+                            default=self.default,
+                            metavar=self.metavar,
+                            nargs=self.nargs,
+                            type=self.type,
+                            action=self.action,
+                            choices=self.choices)
+
+
+
+
+
+
 class Tool(object):
     __metaclass__ = ToolMetaClass
     name = None
@@ -204,15 +281,20 @@ class Tool(object):
         self.handle_signals = self.__class__.handle_signals
 
         # copy options, inputs and outputs
-        self.outputs = {}
-        if self.__class__.outputs is not None:
-            self.outputs.update(self.__class__.outputs)
+        self._params = []
+        self._param_keys = {}
+
         self.inputs = {}
         if self.__class__.inputs is not None:
-            self.inputs.update(self.__class__.inputs)
+            self._update_option(self.__class__.inputs, self.inputs, required=True)
+
+        self.outputs = {}
+        if self.__class__.outputs is not None:
+            self._update_option(self.__class__.outputs, self.outputs)
+
         self.options = {}
         if self.__class__.options is not None:
-            self.options.update(self.__class__.options)
+            self._update_option(self.__class__.options, self.options)
 
         # save signals
         self._received_signal = None
@@ -223,6 +305,17 @@ class Tool(object):
             raise ToolException("No interpreter specified. Ensure that "
                                 "your tool implementation provides a "
                                 "interpreter name!")
+
+    def _update_option(self, options, target, required=False):
+        for k, v in options.items():
+            if isinstance(v, parameter):
+                self._param_keys[v] = k
+                self._params.append(v)
+                if v.required is None:
+                    v.required = required
+                target[k] = v.default
+            else:
+                target[k] = v
 
 
     @property
@@ -604,3 +697,11 @@ class Tool(object):
         args["job"] = self.job
         rendered = Template(self.__class__.command).render(tool=self, **args)
         return textwrap.dedent(rendered)
+
+    def add_arguments(self, parser):
+        """Add configured arguments to the given parser
+        :param parser: argument parser
+        :type parser: argparse.ArgumentParser
+        """
+        for p in self._params:
+            p.add(self, parser, key=self._param_keys[p])
