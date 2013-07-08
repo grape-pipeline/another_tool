@@ -6,3 +6,4 @@ docs/build
 .idea/
 jip/*.so
 build
+distribute-0*
