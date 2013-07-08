@@ -1,7 +1,12 @@
 from distribute_setup import use_setuptools
 use_setuptools()
 import jip
-from setuptools import setup
+from setuptools import setup, Extension
+
+
+dispatcher_ext = Extension('jip.dispatcher',
+                           ['jip/dispatcher/jip_binding.c',
+                            'jip/dispatcher/jip_dispatcher.c'])
 
 setup(
     name='jip',
@@ -13,4 +18,5 @@ setup(
     license="BSD",
     long_description='''This is yet another pipeline library''',
     packages=['jip'],
+    ext_modules=[dispatcher_ext]
 )
