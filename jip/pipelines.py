@@ -96,7 +96,7 @@ class Pipeline(object):
         else:
             wrapper = PipelineTool(self, tool, name)
         self.tools[name] = wrapper
-        self.last = wrapper
+        self.last = [wrapper]
         return wrapper
 
     def validate(self):
@@ -173,7 +173,6 @@ class Pipeline(object):
             if not step.is_done():
                 features.append(grid.submit(step, step.get_configuration()))
         return features
-
 
     def get_sorted_tools(self):
         """Returns all tools in the pipeline in execution order. This does
@@ -259,8 +258,7 @@ class Pipeline(object):
         pass
 
     def __lshift__(self, tool):
-        # Left shift << adds a tool instance to the pipeline
-        print ">>>PIPELINE ADD:", tool
+        """Add a new tool or pipeline to this pipeline"""
         if isinstance(tool, Pipeline):
             for k, v in tool.tools.items():
                 self.add(v)
@@ -268,8 +266,17 @@ class Pipeline(object):
             self.add(tool)
         return self
 
+    def __rshift__(self, other):
+        # same as or | pipe, but enforces a sequencial dependency
+        # where streaming is not allowed and jobs will not be merged
+        # to the same script
+        last = self.last
+        self.__or__(other)
+        for s in last:
+            for t in self.last:
+                t._sequential.append(s)
+
     def __or__(self, tool):
-        print ">>>PIPELINE OR:", str(self), str(tool)
         # or | pipe creates a dependency between last added tool
         # output and current tool input
         if not isinstance(tool, (list, tuple)):
@@ -293,11 +300,9 @@ class Pipeline(object):
                     out = out[0]
 
                 t.__setattr__(t.get_default_input(), out)
-
         return self
 
     def __and__(self, tool):
-        print ">>>PIPELINE AND:", self, tool
         # resolve pipeline
         if isinstance(tool, Pipeline):
             tools = []
@@ -314,6 +319,11 @@ class Pipeline(object):
 
     def __repr__(self):
         return self.name
+
+    def to_json(self):
+        """Convert the pipeline with configuration to JSON"""
+        import json
+        print json.dumps(self)
 
 
 class PipelineTool(object):
@@ -355,6 +365,10 @@ class PipelineTool(object):
         self._name = name
         self._in_edges = set([])
         self._out_edges = set([])
+        self._sequential = []
+        if tool._default_configuration is not None:
+            for k, v in tool._default_configuration.items():
+                self.__setattr__(k, v)
 
     def get_dependencies(self):
         """Return a set of all dependencies of this intance"""
@@ -430,7 +444,7 @@ class PipelineTool(object):
 
     def __setattr__(self, name, value):
         if name not in ["_pipeline", "_tool", "_kwargs", "_name", "job",
-                        "_in_edges", "_out_edges"]:
+                        "_in_edges", "_out_edges", "_sequential"]:
             if not isinstance(value, Parameter):
                 self._kwargs[name] = Parameter(self, name, value)
             else:

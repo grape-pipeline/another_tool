@@ -246,7 +246,7 @@ class Tool(object):
     interpreter = "bash"
     command = None
 
-    def __init__(self, name=None):
+    def __init__(self, *args, **kwargs):
         """Default Tool constructor creates a new instance and optionally
         assigns a name to the tool instance. If the name is not specified,
         the class is checked for a `name` class variable. If that is not found,
@@ -257,6 +257,21 @@ class Tool(object):
                 The name of the tool instance. Defaults to the tool name
                 class attribute
         """
+        name = None
+        self._default_configuration = None
+        if len(args) > 0:
+            for v in args:
+                if isinstance(v, basestring):
+                    name = v
+                elif isinstance(v, dict):
+                    self._default_configuration = v
+        if kwargs is not None:
+            if "name" in kwargs:
+                name = kwargs["name"]
+
+            if "configuration" in kwargs:
+                self._default_configuration = kwargs["configuration"]
+
         # check name and call method
         self.__check_name(name)
         self.__check_call_method()
@@ -282,7 +297,8 @@ class Tool(object):
 
         self.inputs = {}
         if self.__class__.inputs is not None:
-            self._update_option(self.__class__.inputs, self.inputs, required=True)
+            self._update_option(self.__class__.inputs, self.inputs,
+                                required=True)
 
         self.outputs = {}
         if self.__class__.outputs is not None:
@@ -421,7 +437,8 @@ class Tool(object):
             if "cleanup" not in state:
                 state.append("cleanup")
                 self.cleanup(args, failed=True)
-            raise ToolException("Tool execution of %s failed : %s" % (self.name, str(e)), e)
+            raise ToolException("Tool execution of %s failed : %s" %
+                                (self.name, str(e)), e)
         finally:
             if "on_finish" not in state:
                 state.append("on_finish")
@@ -703,7 +720,6 @@ class Tool(object):
 
     def __and__(self, other):
         """ Concatenate two tools running in parallel to a new pipeline"""
-        print ">>>TOOL AND:", self, other
         from jip.pipelines import Pipeline
         p = Pipeline()
         p << self & other
@@ -712,8 +728,15 @@ class Tool(object):
     def __or__(self, other):
         """ Concatenate two tools running with dependencies
         to a new pipeline"""
-        print ">>>TOOL OR:", self, other
         from jip.pipelines import Pipeline
         p = Pipeline()
         p << self | other
+        return p
+
+    def __rshift__(self, other):
+        """Create a new pipeline with the other tool having a sequencial
+        dependecies on this tool"""
+        from jip.pipelines import Pipeline
+        p = Pipeline()
+        p << self >> other
         return p

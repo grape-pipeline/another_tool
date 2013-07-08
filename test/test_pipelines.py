@@ -149,10 +149,41 @@ def test_pipeline_add_parallal_tools():
     with p:
         p << (Touch() | Split()) & Split()
 
-    print str(list([t._name for t in p.get_sorted_tools()]))
-    #assert p.get_sorted_tools() == [p.get("Touch"), p.get("Split")]
-    #assert p.get("Touch").get_dependencies() == set([])
-    #assert p.get("Split").get_dependencies() == set([p.get("Touch")])
+    #print str(list([t._name for t in p.get_sorted_tools()]))
+    #assert p.get_sorted_tools() == [p.get("Split.2"),
+    #                                p.get("Touch"), p.get("Split")]
+    assert p.get("Touch").get_dependencies() == set([])
+    assert p.get("Split").get_dependencies() == set([p.get("Touch")])
+    assert p.get("Split.2").get_dependencies() == set([])
+
+
+def test_pipeline_add_parallal_tools_sequencial_dependencies():
+    p = Pipeline()
+    with p:
+        p << (Touch() >> Split()) & Split()
+
+    assert p.get("Touch").get_dependencies() == set([])
+    assert p.get("Split").get_dependencies() == set([p.get("Touch")])
+    assert p.get("Split")._sequential == [p.get("Touch")]
+    assert p.get("Split.2").get_dependencies() == set([])
+
+
+def test_pipeline_custom_names():
+    p = Pipeline()
+    with p:
+        p << (Touch("t1") >> Split(name="s1")) & Split("s2")
+
+    assert p.get("t1").get_dependencies() == set([])
+    assert p.get("s1").get_dependencies() == set([p.get("t1")])
+    assert p.get("s2").get_dependencies() == set([])
+    assert p.get("s1")._sequential == [p.get("t1")]
+
+
+def test_pipeline_dump_to_json():
+    p = Pipeline()
+    with p:
+        p << (Touch("t1") >> Split(name="s1")) & Split("s2")
+    p.to_json()
 
 
 if __name__ == "__main__":
