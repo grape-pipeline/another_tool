@@ -323,7 +323,7 @@ class Pipeline(object):
     def to_json(self):
         """Convert the pipeline with configuration to JSON"""
         import json
-        print json.dumps(self)
+        print json.dumps([p.to_json() for p in self.tools])
 
 
 class PipelineTool(object):
