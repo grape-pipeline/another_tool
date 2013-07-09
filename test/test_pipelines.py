@@ -180,10 +180,12 @@ def test_pipeline_custom_names():
 
 
 def test_pipeline_dump_to_json():
+    import sys
+    import jip.pipelines
     p = Pipeline()
     with p:
         p << (Touch("t1") >> Split(name="s1")) & Split("s2")
-    p.to_json()
+    jip.pipelines.save(p, sys.stdout)
 
 
 if __name__ == "__main__":

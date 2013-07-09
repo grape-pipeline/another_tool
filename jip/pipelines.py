@@ -320,11 +320,6 @@ class Pipeline(object):
     def __repr__(self):
         return self.name
 
-    def to_json(self):
-        """Convert the pipeline with configuration to JSON"""
-        import json
-        print json.dumps([p.to_json() for p in self.tools])
-
 
 class PipelineTool(object):
     """ A pipeline tool is a wrapper around a given tool instance
@@ -502,3 +497,29 @@ class Parameter(object):
 
     def __str__(self):
         return self.__repr__()
+
+
+#
+# Pipeline persistence
+#
+def save(pipeline, output):
+    """Save the pipeline to the given output. Output can be either a
+    file name or an open file descriptor
+
+    :param pipeline: the pipeline
+    :type pipeline: jip.pipelines.Pipeline
+    :param output: the target, either an open file handle or a file name
+    :type output: string or file handle
+    """
+    if pipeline is None:
+        raise PipelineException("No pipeline specified!")
+    if output is None:
+        raise PipelineException("No target file or stream specified")
+    import json
+
+    # convert the base pipeline
+    dict_pipe = {
+        "name": pipeline.name
+    }
+    json.dumps(dict_pipe, output)
+
