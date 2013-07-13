@@ -1,3 +1,8 @@
+#!/usr/bin/env python
+"""The JIP python module allows to create batch processed computational
+pipelines in python and execute them locally as well as running them
+on a HPC grid
+"""
 __author__ = 'thasso'
 __version__ = "1.0"
 
