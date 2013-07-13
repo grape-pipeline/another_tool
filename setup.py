@@ -18,5 +18,7 @@ setup(
     license="BSD",
     long_description='''This is yet another pipeline library''',
     packages=['jip'],
+    install_requires=["sqlalchemy==0.8.2",
+                      "mako==0.8.0"],
     ext_modules=[dispatcher_ext]
 )

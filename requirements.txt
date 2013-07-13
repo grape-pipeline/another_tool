@@ -2,3 +2,4 @@ Sphinx==1.2b1
 Mako==0.8.0
 pytest==2.3.4
 distribute==0.6.34
+sqlalchemy==0.8.2
