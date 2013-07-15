@@ -12,13 +12,18 @@ setup(
     name='jip',
     version=jip.__version__,
     description='JIP pipeline library',
-    author='Thasso Griebel',
     author_email='thasso.griebel@gmail.com',
     url='',
     license="BSD",
     long_description='''This is yet another pipeline library''',
     packages=['jip'],
     install_requires=["sqlalchemy==0.8.2",
-                      "mako==0.8.0"],
-    ext_modules=[dispatcher_ext]
+                      "mako==0.8.0",
+                      "clint==0.3.1"],
+    ext_modules=[dispatcher_ext],
+    entry_points={
+        "console_scripts": [
+            'jip = jip.cli.jip_main:main'
+        ]
+    }
 )

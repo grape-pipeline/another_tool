@@ -1,0 +1,29 @@
+#!/usr/bin/env jip
+# This is a simple wrapper to count lines in a given input
+# file or in a given input stream.
+#
+# Usage:
+#   line_count.jip [-a] [-i <input>] [-o <output>]
+#   line_count.jip [--help]
+#
+# Options:
+#   -a            Count everything, not just line
+#   -i, --input   The input file to read
+#                 default: stdin
+#   -o, --output  The output file to write
+#                 default: stdout
+#   --help        Show this help message
+
+#%begin validate python
+    if invalid_file("input"):
+        error("Not a valid input file : ${args('input')}")
+#%end validate
+
+#%begin command bash
+%if args('job.threads') > 1
+echo "Unfortunately I can not run with ${job('threads')} threads"
+%endif
+
+wc ${if_args("-a", "", "-l")} ${args("input")}
+#%end command
+
