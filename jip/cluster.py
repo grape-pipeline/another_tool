@@ -575,8 +575,8 @@ class SunGrid(Cluster):
         self._add_parameter(params, "-N", name)
         self._add_parameter(params, '-l',['h_rt', str(self._parse_time(max_time))],
                 lambda x: x[1] == 'None' or int(x[1]) <= 0, to_list="=")
-        self._add_parameter(params, '-l', ['virtual_free', str(max_mem)],
-                lambda x: x[1] == 'None' or int(x[1]) <= 0, to_list="=")
+        self._add_parameter(params, '-l', ['virtual_free', str(self._parse_mem(max_mem, human=True))],
+                lambda x: self._parse_mem(x[1]) == 'None' or self._parse_mem(x[1]) <= 0, to_list="=")
         self._add_parameter(params,value="-V")
         self._add_parameter(params, "-wd", working_dir,
                             lambda x: not os.path.exists(str(x)))
@@ -634,4 +634,29 @@ class SunGrid(Cluster):
         if len(t) is not 3:
             raise ValueError('SunGrid: Invalid time string format')
         return int(t[0])*3600 + int(t[1])*60 + int(t[2])
+
+    def _parse_mem(self, mem, human = False):
+        from math import log, ceil
+        import re
+        units = ['', 'k', 'm', 'g']
+        if mem is None:
+            return mem
+        try:
+            mem = int(mem)
+            if mem > 0 and human:
+                exponent = min(int(log(mem, 1024)), len(units) - 1)
+                quotient = int(ceil(float(mem) / 1024**exponent))
+                format_string = '{:d}{}'
+                mem = format_string.format(quotient, units[exponent].upper())
+            return mem
+        except:
+            r = re.compile("(?P<val>\d+)(?P<unit>[kKmMgG])")
+            m = r.match(mem)
+            if not m:
+                return -1
+            if not human:
+                mem = int(m.group('val')) * 1024**units.index(m.group('unit').lower())
+            return mem
+
+
 
